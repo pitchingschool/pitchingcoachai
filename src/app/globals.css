@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0a0a;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Progress bar animation */
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-progress-pulse {
+  animation: progress-pulse 1.5s ease-in-out infinite;
+}
+
+/* Horizontal scroll for phase frames on mobile */
+.phase-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.phase-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar globally on horizontal scrolls */
+.scrollbar-hide {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Select dropdown dark styling */
+select option {
+  background: #1a1a1a;
+  color: #ffffff;
+}
