@@ -28,7 +28,7 @@ interface PhaseGridProps {
   onSelect: (phase: PhaseName) => void;
 }
 
-const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release"];
+const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
 
 export default function PhaseGrid({
   phaseGrades,

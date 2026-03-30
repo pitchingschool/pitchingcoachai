@@ -158,6 +158,68 @@ const DRILL_MAP: Record<string, DrillEntry> = {
       campaign: "arm_extension",
     },
   },
+  "release.leadLegBraceTotal": {
+    name: "Front Leg Block Drill",
+    description: "From your stride position, plant your front foot and focus on driving your front knee BACK toward second base as you rotate your hips. The cue is 'knee goes back, chest comes forward.' Your plant leg should be extending through ball release — not collapsing or staying bent. This converts forward momentum into rotational velocity. Pair with crow hops for max intent.",
+    reps: "10-15 throws from flat ground, focus on knee driving back",
+  },
+  // DECELERATION drills
+  "deceleration.followThroughLength": {
+    name: "Weighted Ball Reverse Throws",
+    description: "Using a 32 oz weighted ball, stand facing away from your target. Perform a reverse throw — rotating your trunk and letting the ball go behind you over your head. This builds eccentric strength in the posterior shoulder muscles (the decelerators) that are responsible for slowing your arm down after release. The heavy weight forces your body to absorb and redirect force through a full range of motion, training the exact muscles that protect your arm during follow-through.",
+    reps: "2 sets of 8-10 reverse throws with a 32 oz ball",
+    product: {
+      name: GPS_PRODUCTS.weightedBalls.name,
+      url: GPS_PRODUCTS.weightedBalls.url,
+      campaign: "deceleration_reverse",
+    },
+  },
+  "deceleration.bodyBalance": {
+    name: "Weighted Ball Holds",
+    description: "Using a 14 oz weighted ball, go through your full delivery but DO NOT let go of the ball. Hold onto it through your entire follow-through. This forces your arm to decelerate under load while you maintain body control and balance. You'll feel your posterior shoulder and scapular muscles working hard to slow the arm down — that's exactly what we want. The hold teaches your body to finish balanced and in control while building the deceleration strength that protects your arm over a full season.",
+    reps: "2 sets of 10 reps with a 14 oz ball, full delivery without releasing",
+    product: {
+      name: GPS_PRODUCTS.weightedBalls.name,
+      url: GPS_PRODUCTS.weightedBalls.url,
+      campaign: "deceleration_holds",
+    },
+  },
+  "deceleration.armDecelerationPath": {
+    name: "Weighted Ball Reverse Throws + Holds Combo",
+    description: "Alternate between reverse throws (32 oz) and hold throws (14 oz). Start with 8 reverse throws to activate the decelerators, then immediately do 8 holds to reinforce the pattern under a full delivery motion. The reverse throws build raw eccentric strength, and the holds apply that strength to your actual pitching motion. This combo is the best way to build a healthy, durable arm that can handle high-intent throwing.",
+    reps: "8 reverse throws (32 oz) + 8 holds (14 oz), 2 rounds",
+    product: {
+      name: GPS_PRODUCTS.weightedBalls.name,
+      url: GPS_PRODUCTS.weightedBalls.url,
+      campaign: "deceleration_combo",
+    },
+  },
+  // NEW METRICS drills
+  "footStrike.shoulderAbductionAtFS": {
+    name: "T-Position Arm Path Drill",
+    description: "From the T-position (both arms out at shoulder height, elbows at 90°), rock forward into your stride. Your throwing arm should be at 90° abduction — elbow at shoulder height — when your front foot hits. This drill gives you the feel of proper arm height at foot strike. If your elbow drops below your shoulder at SFC, it puts extra stress on your arm and limits velocity.",
+    reps: "10-15 throws from the T-position at 75% effort",
+  },
+  "footStrike.shoulderERAtFS": {
+    name: "Cocked Position Awareness Drill",
+    description: "In slow motion, go through your delivery and freeze at foot strike. Check your arm: your forearm should be laying back (externally rotated ~35°) with your elbow at shoulder height. If your arm is still down or straight up, you have late arm timing. Practice getting your arm to this cocked position by the time your front foot lands. Mirror work is great for building this awareness.",
+    reps: "10 slow-motion reps to foot strike, check arm position each time",
+  },
+  "mer.leadLegBraceDelta": {
+    name: "Knee-Back Block Drill",
+    description: "From your stride position, plant your front foot and actively drive your front knee BACK toward second base as you rotate. The focus is on the knee moving backward during hip rotation — this is what creates the firm front side. Think of your front leg as a wall that your body rotates around. The more your knee drives back (extends), the more energy transfers to the ball.",
+    reps: "10-15 throws, exaggerate the knee driving back",
+  },
+  "mer.trunkRotationSequencing": {
+    name: "Hip-Lead Separation Drill",
+    description: "Start in your stride position with a resistance band around your hips attached behind you. Stride forward and let the band pull your hips open first while you actively resist with your shoulders, keeping your chest closed. Feel the separation — hips open, shoulders closed. This trains the hip-shoulder dissociation that creates the kinetic chain: pelvis rotates first, then trunk follows. The pelvis MUST fire before the shoulders.",
+    reps: "3 sets of 8 reps with the band, then 10 throws applying the feel",
+    product: {
+      name: GPS_PRODUCTS.resistanceBands.name,
+      url: GPS_PRODUCTS.resistanceBands.url,
+      campaign: "rotation_sequencing",
+    },
+  },
 };
 
 // ============================================================

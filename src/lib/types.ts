@@ -32,22 +32,24 @@ export interface ValidFrame {
 // PHASE DETECTION
 // ============================================================
 
-export type PhaseName = "legLift" | "drift" | "footStrike" | "mer" | "release";
+export type PhaseName = "legLift" | "drift" | "footStrike" | "mer" | "release" | "deceleration";
 
 export const PHASE_LABELS: Record<PhaseName, string> = {
   legLift: "Leg Lift",
-  drift: "Drift",
+  drift: "Stride",
   footStrike: "Foot Strike",
-  mer: "Max External Rotation",
+  mer: "Arm Cocking",
   release: "Ball Release",
+  deceleration: "Follow-Through",
 };
 
 export const PHASE_SHORT_LABELS: Record<PhaseName, string> = {
   legLift: "Leg Lift",
-  drift: "Drift",
-  footStrike: "FFS",
+  drift: "Stride",
+  footStrike: "SFC",
   mer: "MER",
   release: "Release",
+  deceleration: "Follow-Thru",
 };
 
 export interface PhaseResult {
@@ -57,11 +59,12 @@ export interface PhaseResult {
 }
 
 export interface DetectedPhases {
-  legLift: PhaseResult;   // peak knee height — visible to user
-  drift: PhaseResult;     // forward momentum initiation
-  footStrike: PhaseResult; // front foot plants
-  mer: PhaseResult;       // max external rotation (arm cocked back)
-  release: PhaseResult;   // ball leaving hand
+  legLift: PhaseResult;      // peak knee height (PKH)
+  drift: PhaseResult;        // forward momentum / stride generation
+  footStrike: PhaseResult;   // stride foot contact (SFC)
+  mer: PhaseResult;          // maximum external rotation (arm cocking)
+  release: PhaseResult;      // ball release (acceleration phase end)
+  deceleration: PhaseResult; // follow-through / deceleration
 }
 
 // ============================================================
@@ -86,10 +89,12 @@ export interface FootStrikeMetrics {
   hipShoulderSep: number | null;       // degrees
   leadKneeAngle: number | null;        // degrees (full joint angle, 180=straight)
   armCocked: boolean | null;           // is elbow >= shoulder height?
-  elbowAngleAtFS: number | null;       // degrees
+  elbowAngleAtFS: number | null;       // degrees (elbow flexion at SFC)
   forearmVerticalAngle: number | null;  // degrees from vertical (0=perfect, >20=late)
   trunkAngle: number | null;           // degrees from vertical
   glovePosition: number | null;        // glove wrist X relative to lead shoulder X
+  shoulderAbductionAtFS: number | null; // shoulder abduction angle at SFC (degrees)
+  shoulderERAtFS: number | null;       // external rotation estimate at SFC (degrees)
 }
 
 export interface MERMetrics {
@@ -97,8 +102,10 @@ export interface MERMetrics {
   elbowHeight: number | null;              // degrees relative to shoulder line
   elbowFlexion: number | null;             // degrees
   trunkLateralTilt: number | null;         // degrees from vertical
-  leadLegBrace: number | null;             // degrees (knee extension)
+  leadLegBrace: number | null;             // degrees (knee extension at MER)
   shoulderAbduction: number | null;        // degrees
+  leadLegBraceDelta: number | null;        // knee extension change from SFC to MER (degrees)
+  trunkRotationSequencing: number | null;  // pelvis-trunk timing lag (frames)
 }
 
 export interface ReleaseMetrics {
@@ -108,6 +115,14 @@ export interface ReleaseMetrics {
   extension: number | null;            // wrist X - back ankle X (normalized)
   armSlot: number | null;              // degrees from vertical
   trunkRotation: number | null;        // shoulder line change from FS (degrees)
+  leadLegBraceTotal: number | null;    // total knee extension change SFC to release (degrees)
+}
+
+export interface DecelerationMetrics {
+  followThroughLength: number | null;  // how far wrist travels after release (normalized)
+  trunkFlexionDelta: number | null;    // trunk flexion change from release to follow-through
+  bodyBalance: number | null;          // head position relative to base of support (0=balanced)
+  armDecelerationPath: number | null;  // smoothness score of arm path post-release (0-100)
 }
 
 export interface AllMetrics {
@@ -116,6 +131,7 @@ export interface AllMetrics {
   footStrike: FootStrikeMetrics;
   mer: MERMetrics;
   release: ReleaseMetrics;
+  deceleration: DecelerationMetrics;
 }
 
 // ============================================================

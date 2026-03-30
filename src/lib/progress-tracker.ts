@@ -13,6 +13,7 @@ export interface SavedAnalysis {
     footStrike: { score: number; grade: string };
     mer: { score: number; grade: string };
     release: { score: number; grade: string };
+    deceleration: { score: number; grade: string };
   };
   firstName?: string;
 }
@@ -80,13 +81,14 @@ export function compareWithPrevious(
   const previous = history[history.length - 1];
   const scoreDelta = currentScore - previous.score;
 
-  const phaseNames = ["legLift", "drift", "footStrike", "mer", "release"] as const;
+  const phaseNames = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"] as const;
   const phaseLabels: Record<string, string> = {
     legLift: "Leg Lift",
-    drift: "Drift",
+    drift: "Stride",
     footStrike: "Foot Strike",
-    mer: "MER",
+    mer: "Arm Cocking",
     release: "Release",
+    deceleration: "Follow-Through",
   };
 
   const phaseChanges = phaseNames.map((p) => {

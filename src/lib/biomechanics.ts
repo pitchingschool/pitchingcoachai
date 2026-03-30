@@ -18,6 +18,7 @@ import {
   type FootStrikeMetrics,
   type MERMetrics,
   type ReleaseMetrics,
+  type DecelerationMetrics,
   type AllMetrics,
   type Point2D,
   getSideKeys,
@@ -165,7 +166,7 @@ function calcFootStrikeMetrics(
   S: ReturnType<typeof getSideKeys>
 ): FootStrikeMetrics {
   const f = frames[phases.footStrike.frameIndex];
-  if (!f) return { strideLength: null, hipShoulderSep: null, leadKneeAngle: null, armCocked: null, elbowAngleAtFS: null, forearmVerticalAngle: null, trunkAngle: null, glovePosition: null };
+  if (!f) return { strideLength: null, hipShoulderSep: null, leadKneeAngle: null, armCocked: null, elbowAngleAtFS: null, forearmVerticalAngle: null, trunkAngle: null, glovePosition: null, shoulderAbductionAtFS: null, shoulderERAtFS: null };
 
   const height = estimateHeight(f);
 
@@ -227,7 +228,22 @@ function calcFootStrikeMetrics(
   const gloveShoulder = kp(f, S.gloveShoulder);
   const glovePosition = Math.round((gloveShoulder.x - gloveWrist.x) * 100) / 100;
 
-  return { strideLength, hipShoulderSep, leadKneeAngle, armCocked, elbowAngleAtFS, forearmVerticalAngle, trunkAngle, glovePosition };
+  // Shoulder abduction at SFC: angle of upper arm relative to torso midline
+  const hipMidFS = mid(kp(f, "leftHip"), kp(f, "rightHip"));
+  const shoulderAbductionAtFS = Math.round(angle3(hipMidFS, throwShoulder, throwElbow));
+
+  // Shoulder external rotation at SFC: forearm angle relative to upper arm
+  // At SFC, the forearm should be relatively vertical (cocked position)
+  // ER estimate: angle between upper arm vector and forearm vector in 2D
+  const throwWrist = kp(f, S.throwWrist);
+  const forearmAngleFS = vecAngle(throwElbow, throwWrist);
+  const upperArmAngleFS = vecAngle(throwShoulder, throwElbow);
+  let shoulderERAtFS = Math.round(Math.abs(forearmAngleFS - upperArmAngleFS));
+  if (shoulderERAtFS > 180) shoulderERAtFS = 360 - shoulderERAtFS;
+  // 2D correction (same as MER calculation)
+  shoulderERAtFS = Math.min(180, shoulderERAtFS + 30);
+
+  return { strideLength, hipShoulderSep, leadKneeAngle, armCocked, elbowAngleAtFS, forearmVerticalAngle, trunkAngle, glovePosition, shoulderAbductionAtFS, shoulderERAtFS };
 }
 
 // ============================================================
@@ -240,7 +256,7 @@ function calcMERMetrics(
   S: ReturnType<typeof getSideKeys>
 ): MERMetrics {
   const f = frames[phases.mer.frameIndex];
-  if (!f) return { shoulderExternalRotation: null, elbowHeight: null, elbowFlexion: null, trunkLateralTilt: null, leadLegBrace: null, shoulderAbduction: null };
+  if (!f) return { shoulderExternalRotation: null, elbowHeight: null, elbowFlexion: null, trunkLateralTilt: null, leadLegBrace: null, shoulderAbduction: null, leadLegBraceDelta: null, trunkRotationSequencing: null };
 
   // Shoulder External Rotation (forearm layback)
   // Measured as angle between upper arm vector and forearm vector
@@ -286,7 +302,62 @@ function calcMERMetrics(
   // Shoulder abduction (upper arm angle relative to torso)
   const shoulderAbduction = Math.round(angle3(hipMid, shoulder, elbow));
 
-  return { shoulderExternalRotation, elbowHeight, elbowFlexion, trunkLateralTilt, leadLegBrace, shoulderAbduction };
+  // Lead leg brace delta: knee extension change from SFC to MER
+  // Positive value = leg is straightening (bracing), negative = collapsing
+  let leadLegBraceDelta: number | null = null;
+  const fsFrame = frames[phases.footStrike.frameIndex];
+  if (fsFrame) {
+    const fsKneeAngle = Math.round(angle3(
+      kp(fsFrame, S.leadHip),
+      kp(fsFrame, S.leadKnee),
+      kp(fsFrame, S.leadAnkle)
+    ));
+    leadLegBraceDelta = leadLegBrace - fsKneeAngle;
+  }
+
+  // Trunk rotation sequencing: measure the timing lag between hip and shoulder rotation
+  // We look at frames from SFC to MER and find when hips vs shoulders reach peak rotation velocity
+  let trunkRotationSequencing: number | null = null;
+  const fsIdx = phases.footStrike.frameIndex;
+  const merIdx = phases.mer.frameIndex;
+
+  if (merIdx > fsIdx + 3) {
+    // Measure hip line angle and shoulder line angle at each frame
+    let hipPeakVelIdx = fsIdx;
+    let shoulderPeakVelIdx = fsIdx;
+    let hipPeakVel = 0;
+    let shoulderPeakVel = 0;
+
+    for (let i = fsIdx + 1; i <= merIdx && i < frames.length; i++) {
+      const prevF = frames[i - 1];
+      const currF = frames[i];
+      if (!prevF || !currF) continue;
+
+      // Hip rotation velocity (change in hip line angle)
+      const prevHipAngle = vecAngle(kp(prevF, "leftHip"), kp(prevF, "rightHip"));
+      const currHipAngle = vecAngle(kp(currF, "leftHip"), kp(currF, "rightHip"));
+      const hipVel = Math.abs(currHipAngle - prevHipAngle);
+
+      // Shoulder rotation velocity
+      const prevShoulderAngle = vecAngle(kp(prevF, "leftShoulder"), kp(prevF, "rightShoulder"));
+      const currShoulderAngle = vecAngle(kp(currF, "leftShoulder"), kp(currF, "rightShoulder"));
+      const shoulderVel = Math.abs(currShoulderAngle - prevShoulderAngle);
+
+      if (hipVel > hipPeakVel) {
+        hipPeakVel = hipVel;
+        hipPeakVelIdx = i;
+      }
+      if (shoulderVel > shoulderPeakVel) {
+        shoulderPeakVel = shoulderVel;
+        shoulderPeakVelIdx = i;
+      }
+    }
+
+    // Sequencing = shoulder peak comes AFTER hip peak (positive = good sequential timing)
+    trunkRotationSequencing = shoulderPeakVelIdx - hipPeakVelIdx;
+  }
+
+  return { shoulderExternalRotation, elbowHeight, elbowFlexion, trunkLateralTilt, leadLegBrace, shoulderAbduction, leadLegBraceDelta, trunkRotationSequencing };
 }
 
 // ============================================================
@@ -301,7 +372,7 @@ function calcReleaseMetrics(
 ): ReleaseMetrics {
   const f = frames[phases.release.frameIndex];
   const fsFrame = frames[phases.footStrike.frameIndex];
-  if (!f) return { trunkForwardFlexion: null, leadLegExtension: null, releasePointHeight: null, extension: null, armSlot: null, trunkRotation: null };
+  if (!f) return { trunkForwardFlexion: null, leadLegExtension: null, releasePointHeight: null, extension: null, armSlot: null, trunkRotation: null, leadLegBraceTotal: null };
 
   // Trunk forward flexion (trunk angle from vertical at release)
   const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
@@ -349,7 +420,93 @@ function calcReleaseMetrics(
     if (trunkRotation > 90) trunkRotation = 180 - trunkRotation;
   }
 
-  return { trunkForwardFlexion, leadLegExtension, releasePointHeight, extension, armSlot, trunkRotation };
+  // Lead leg brace total: knee extension change from SFC to release
+  let leadLegBraceTotal: number | null = null;
+  if (fsFrame) {
+    const fsKneeAngle = Math.round(angle3(
+      kp(fsFrame, S.leadHip),
+      kp(fsFrame, S.leadKnee),
+      kp(fsFrame, S.leadAnkle)
+    ));
+    leadLegBraceTotal = leadLegExtension - fsKneeAngle;
+  }
+
+  return { trunkForwardFlexion, leadLegExtension, releasePointHeight, extension, armSlot, trunkRotation, leadLegBraceTotal };
+}
+
+// ============================================================
+// DECELERATION / FOLLOW-THROUGH METRICS
+// ============================================================
+
+function calcDecelerationMetrics(
+  frames: ValidFrame[],
+  phases: DetectedPhases,
+  S: ReturnType<typeof getSideKeys>
+): DecelerationMetrics {
+  const f = frames[phases.deceleration.frameIndex];
+  const relFrame = frames[phases.release.frameIndex];
+  if (!f) return { followThroughLength: null, trunkFlexionDelta: null, bodyBalance: null, armDecelerationPath: null };
+
+  const height = estimateHeight(f);
+
+  // Follow-through length: how far the throwing wrist travels after release
+  let followThroughLength: number | null = null;
+  if (relFrame && height > 0) {
+    const relWrist = kp(relFrame, S.throwWrist);
+    const decelWrist = kp(f, S.throwWrist);
+    followThroughLength = Math.round((dist(relWrist, decelWrist) / height) * 100) / 100;
+  }
+
+  // Trunk flexion delta: additional trunk flexion from release to follow-through
+  let trunkFlexionDelta: number | null = null;
+  if (relFrame) {
+    const relHipMid = mid(kp(relFrame, "leftHip"), kp(relFrame, "rightHip"));
+    const relShoulderMid = mid(kp(relFrame, "leftShoulder"), kp(relFrame, "rightShoulder"));
+    const relTrunkAngle = Math.abs(-90 - vecAngle(relHipMid, relShoulderMid));
+
+    const decelHipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
+    const decelShoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
+    const decelTrunkAngle = Math.abs(-90 - vecAngle(decelHipMid, decelShoulderMid));
+
+    trunkFlexionDelta = Math.round(decelTrunkAngle - relTrunkAngle);
+  }
+
+  // Body balance: how centered is the head over the base of support at follow-through
+  const nose = kp(f, "nose");
+  const leadAnkle = kp(f, S.leadAnkle);
+  const backAnkle = kp(f, S.backAnkle);
+  const baseMidX = (leadAnkle.x + backAnkle.x) / 2;
+  // Normalized deviation: 0 = perfectly centered, higher = more off-balance
+  const bodyBalance = height > 0
+    ? Math.round(Math.abs(nose.x - baseMidX) / height * 100)
+    : null;
+
+  // Arm deceleration path smoothness: measure how smooth the wrist path is from release to follow-through
+  // Score 0-100 (100 = perfectly smooth arc, lower = jerky/abbreviated)
+  let armDecelerationPath: number | null = null;
+  const relIdx = phases.release.frameIndex;
+  const decelIdx = phases.deceleration.frameIndex;
+
+  if (decelIdx > relIdx + 2) {
+    // Measure consistency of wrist speed across post-release frames
+    const speeds: number[] = [];
+    for (let i = relIdx + 1; i <= decelIdx && i < frames.length; i++) {
+      if (i < 1) continue;
+      const spd = dist(kp(frames[i - 1], S.throwWrist), kp(frames[i], S.throwWrist));
+      speeds.push(spd);
+    }
+
+    if (speeds.length >= 2) {
+      // Check for smooth deceleration (speeds should decrease monotonically)
+      let smoothFrames = 0;
+      for (let i = 1; i < speeds.length; i++) {
+        if (speeds[i] <= speeds[i - 1] * 1.3) smoothFrames++; // Allow 30% tolerance
+      }
+      armDecelerationPath = Math.round((smoothFrames / (speeds.length - 1)) * 100);
+    }
+  }
+
+  return { followThroughLength, trunkFlexionDelta, bodyBalance, armDecelerationPath };
 }
 
 // ============================================================
@@ -369,5 +526,6 @@ export function calculateAllMetrics(
     footStrike: calcFootStrikeMetrics(frames, phases, S),
     mer: calcMERMetrics(frames, phases, S),
     release: calcReleaseMetrics(frames, phases, S, throwingHand),
+    deceleration: calcDecelerationMetrics(frames, phases, S),
   };
 }

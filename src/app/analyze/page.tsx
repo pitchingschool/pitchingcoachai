@@ -182,6 +182,7 @@ export default function AnalyzePage() {
         footStrike: { score: 0, grade: "C" },
         mer: { score: 0, grade: "C" },
         release: { score: 0, grade: "C" },
+        deceleration: { score: 0, grade: "C" },
       };
       for (const pg of analysisResult.grade.phaseGrades) {
         if (pg.phase in currentPhases) {

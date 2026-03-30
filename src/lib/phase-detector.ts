@@ -769,6 +769,46 @@ export function detectPhases(
   if (remapped.merIdx < n) frames[remapped.merIdx].phase = "mer";
   if (newReleaseIdx < n) frames[newReleaseIdx].phase = "release";
 
+  // ── DECELERATION / FOLLOW-THROUGH DETECTION ──
+  // Find the frame after release where throwing arm has decelerated
+  // and body reaches a balanced follow-through position.
+  // Method: find frame where wrist speed drops below 30% of release speed,
+  // or 8-15 frames after release (whichever comes first).
+  let decelIdx = Math.min(newReleaseIdx + 8, n - 1);
+  let decelConfidence = 60;
+
+  if (newReleaseIdx < n - 3) {
+    // Measure wrist speed at release for reference
+    const relPrev = frames[newReleaseIdx - 1]?.keypoints[S.throwWrist];
+    const relCurr = frames[newReleaseIdx]?.keypoints[S.throwWrist];
+    const releaseWristSpeed = (relPrev && relCurr) ? speed(relPrev, relCurr) : 0.05;
+
+    const decelThreshold = releaseWristSpeed * 0.3;
+    let foundDecel = false;
+
+    for (let i = newReleaseIdx + 2; i < Math.min(newReleaseIdx + 20, n); i++) {
+      if (i < 1) continue;
+      const wPrev = frames[i - 1]?.keypoints[S.throwWrist];
+      const wCurr = frames[i]?.keypoints[S.throwWrist];
+      const wristSpd = (wPrev && wCurr) ? speed(wPrev, wCurr) : 0;
+
+      if (wristSpd < decelThreshold) {
+        decelIdx = i;
+        decelConfidence = 80;
+        foundDecel = true;
+        break;
+      }
+    }
+
+    // Fallback: use frame ~10 after release or last frame
+    if (!foundDecel) {
+      decelIdx = Math.min(newReleaseIdx + 10, n - 1);
+      decelConfidence = 50;
+    }
+  }
+
+  if (decelIdx < n) frames[decelIdx].phase = "deceleration";
+
   // Console debug output for validation
   if (typeof console !== "undefined") {
     console.log("[PhaseDetector] Remapped Results:", {
@@ -777,6 +817,7 @@ export function detectPhases(
       footStrike: remapped.footStrikeIdx,
       mer: remapped.merIdx,
       release: newReleaseIdx,
+      deceleration: decelIdx,
       totalFrames: n,
       throwDirection: throwDirSign > 0 ? "→ right" : "← left",
     });
@@ -807,6 +848,11 @@ export function detectPhases(
       frameIndex: newReleaseIdx,
       confidence: newReleaseConfidence,
       timestampMs: frames[newReleaseIdx]?.timestampMs ?? 0,
+    },
+    deceleration: {
+      frameIndex: decelIdx,
+      confidence: decelConfidence,
+      timestampMs: frames[decelIdx]?.timestampMs ?? 0,
     },
   };
 }

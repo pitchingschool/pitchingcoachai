@@ -15,7 +15,7 @@ interface DebugPanelProps {
   fpsQuality?: FPSQuality;
 }
 
-const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release"];
+const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
 
 function confidenceColor(confidence: number): string {
   if (confidence >= 70) return "text-green-400";

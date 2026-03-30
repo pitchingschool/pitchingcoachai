@@ -20,7 +20,7 @@ const GRADE_COLORS: Record<string, string> = {
   injury: "#ef4444",
 };
 
-const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release"];
+const PHASE_ORDER: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
 
 export default function PhaseTimeline({
   phases,

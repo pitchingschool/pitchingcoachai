@@ -593,7 +593,7 @@ export async function runAnalysis(
 
   // Stage 6: Capture freeze frames at each phase
   onProgress("Capturing key positions...", 0);
-  const phaseKeys: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release"];
+  const phaseKeys: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
   const phaseFrameCaptures: Record<string, string> = {};
 
   for (let i = 0; i < phaseKeys.length; i++) {
