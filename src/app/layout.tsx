@@ -39,12 +39,21 @@ export const metadata: Metadata = {
     siteName: "PitchingCoachAI",
     type: "website",
     locale: "en_US",
+    images: [
+      {
+        url: "/twitter-card.png",
+        width: 1200,
+        height: 628,
+        alt: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
     description:
       "Upload a pitching video. Get grades, drills, and injury flags in 60 seconds.",
+    images: ["/twitter-card.png"],
   },
   robots: {
     index: true,
