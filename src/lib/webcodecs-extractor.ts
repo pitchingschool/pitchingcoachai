@@ -82,8 +82,22 @@ interface DemuxSample {
   timescale: number;
 }
 
-async function demuxVideo(file: File): Promise<DemuxResult> {
+/** Timeout wrapper — rejects if the inner promise takes too long */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
+async function demuxVideo(file: File): Promise<DemuxResult> {
+  // Timeout: 15s for files under 50MB, 30s for larger files
+  const timeoutMs = file.size > 50 * 1024 * 1024 ? 30000 : 15000;
+
+  return withTimeout(new Promise((resolve, reject) => {
     const mp4 = createFile() as ISOFile;
     const allSamples: DemuxSample[] = [];
     let description: Uint8Array | undefined;
@@ -196,7 +210,7 @@ async function demuxVideo(file: File): Promise<DemuxResult> {
     };
 
     reader.readAsArrayBuffer(file);
-  });
+  }), timeoutMs, "WebCodecs demux");
 }
 
 // ============================================================
@@ -356,8 +370,16 @@ export async function extractFramesWebCodecs(
       }
     }
 
-    // Flush to get all output frames for this batch
-    await decoder.flush();
+    // Flush to get all output frames for this batch (with timeout)
+    try {
+      await withTimeout(decoder.flush(), 10000, "Decoder flush");
+    } catch (flushErr) {
+      console.warn(`[WebCodecs] Flush timeout at batch ${batchStart}, returning what we have`);
+      // Close any queued frames
+      for (const f of outputQueue) f.close();
+      outputQueue.length = 0;
+      break;
+    }
 
     // Sort output frames by presentation timestamp (handles B-frame reordering)
     outputQueue.sort((a, b) => a.timestamp - b.timestamp);

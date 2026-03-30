@@ -363,10 +363,12 @@ export async function extractFrames(
   // WebCodecs decodes every encoded frame from the bitstream.
   // This is faster and more accurate than video.currentTime seeking,
   // especially for 240fps slo-mo where seeking can't hit every 4.17ms frame.
+  // Wrapped in a 60-second overall timeout to prevent hanging.
   if (isWebCodecsSupported() && probe && options?.file) {
     try {
       console.log("[Analysis] Attempting WebCodecs extraction...");
-      const webcodecFrames = await extractFramesWebCodecs(
+
+      const webCodecsPromise = extractFramesWebCodecs(
         options.file,
         probe,
         poseLandmarker,
@@ -377,6 +379,14 @@ export async function extractFrames(
           maxFrames: MAX_ANALYSIS_FRAMES,
         }
       );
+
+      // Overall 60s timeout for the entire WebCodecs pipeline
+      const webcodecFrames = await Promise.race([
+        webCodecsPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("WebCodecs extraction timed out after 60s")), 60000)
+        ),
+      ]);
 
       if (webcodecFrames.length >= MIN_VALID_FRAMES) {
         console.log(`[Analysis] WebCodecs success: ${webcodecFrames.length} valid frames`);
@@ -389,13 +399,22 @@ export async function extractFrames(
     } catch (err) {
       console.warn("[Analysis] WebCodecs failed, falling back to seek-based extraction:", err);
     }
+
+    // Show user that we're falling back
+    onProgress("Switching to standard extraction...", 0);
   }
 
   // ── FALLBACK: SEEK-BASED EXTRACTION ────────────────────────
   // Uses video.currentTime to seek to each frame position.
   // Works for all browsers but can't guarantee every frame at high FPS.
-  const targetFPS = options?.targetFPS ?? nativeFPS;
+  // Cap at 60fps for seek-based — browsers can't reliably seek faster than ~16ms intervals.
+  // Higher FPS videos (120/240) will be subsampled; WebCodecs is needed for full frame access.
+  const rawTargetFPS = options?.targetFPS ?? nativeFPS;
+  const targetFPS = Math.min(rawTargetFPS, 60);
   let sampleFPS = targetFPS;
+  if (rawTargetFPS > 60) {
+    console.log(`[Analysis] Seek-based fallback: capping ${rawTargetFPS}fps to ${targetFPS}fps (browser seek limitation)`);
+  }
   const nativeFrameCount = Math.floor(windowDuration * targetFPS);
 
   if (nativeFrameCount > MAX_ANALYSIS_FRAMES) {
@@ -425,7 +444,8 @@ export async function extractFrames(
       let done = false;
       const finish = () => { if (!done) { done = true; resolve(); } };
       video.onseeked = finish;
-      setTimeout(() => { if (!done) { done = true; resolve(); } }, 5000);
+      // 2s timeout per seek — if browser can't seek in 2s, skip this frame
+      setTimeout(finish, 2000);
     });
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
