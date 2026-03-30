@@ -18,6 +18,9 @@ interface AdminData {
   leads: Lead[];
   stats: { total: number; last7: number; last30: number; avgScore: number | null; totalAnalyses: number };
   dailyCounts: { [date: string]: number };
+  ageDistribution?: { [age: string]: number };
+  sourceDistribution?: { [source: string]: number };
+  dripStats?: { [stage: string]: number };
 }
 
 export default function AdminPage() {
@@ -146,6 +149,78 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* Age + Source + Drip breakdown */}
+        <div className="grid md:grid-cols-3 gap-4 mb-8">
+          {/* Age Distribution */}
+          {data?.ageDistribution && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-white/40 mb-3">Age Distribution</h3>
+              <div className="space-y-1">
+                {Object.entries(data.ageDistribution)
+                  .sort(([a], [b]) => Number(a) - Number(b))
+                  .map(([age, count]) => {
+                    const max = Math.max(...Object.values(data.ageDistribution!), 1);
+                    const pct = (count / max) * 100;
+                    return (
+                      <div key={age} className="flex items-center gap-2">
+                        <span className="text-xs text-white/50 w-6 text-right">{age}</span>
+                        <div className="flex-1 bg-white/5 rounded-full h-3">
+                          <div className="bg-brand-red rounded-full h-3" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-white/40 w-6">{count}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Source Distribution */}
+          {data?.sourceDistribution && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-white/40 mb-3">Traffic Sources</h3>
+              <div className="space-y-1">
+                {Object.entries(data.sourceDistribution)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([source, count]) => {
+                    const max = Math.max(...Object.values(data.sourceDistribution!), 1);
+                    const pct = (count / max) * 100;
+                    return (
+                      <div key={source} className="flex items-center gap-2">
+                        <span className="text-xs text-white/50 w-20 truncate">{source}</span>
+                        <div className="flex-1 bg-white/5 rounded-full h-3">
+                          <div className="bg-blue-500 rounded-full h-3" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-white/40 w-6">{count}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Drip Email Progress */}
+          {data?.dripStats && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <h3 className="text-sm font-bold text-white/40 mb-3">Email Drip Progress</h3>
+              <div className="space-y-2">
+                {[
+                  { stage: "0", label: "Welcome sent" },
+                  { stage: "1", label: "Email 2 sent" },
+                  { stage: "2", label: "Email 3 sent" },
+                  { stage: "3", label: "Email 4 sent" },
+                  { stage: "4", label: "Sequence complete" },
+                ].map(({ stage, label }) => (
+                  <div key={stage} className="flex items-center justify-between">
+                    <span className="text-xs text-white/50">{label}</span>
+                    <span className="text-sm font-bold">{data.dripStats![stage] || 0}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Leads table */}
         <div className="overflow-x-auto">

@@ -5,7 +5,8 @@
  * Thresholds informed by ASMI normative data, Driveline research, and
  * Ben Brewster / Tread Athletics methodology.
  *
- * Grade scale: A+ / A / B / C / D / F with injury flags.
+ * Grade scale: A+ / A / B / C only — nothing below C.
+ * Injury flags still apply but show as C with a warning.
  */
 
 import {
@@ -39,6 +40,51 @@ interface MetricDef {
 }
 
 const METRIC_DEFS: MetricDef[] = [
+  // === LEG LIFT METRICS ===
+  {
+    key: "legLift.leadKneeHeight",
+    label: "Knee Height",
+    phase: "legLift",
+    unit: "",
+    weight: 1.5,
+    thresholds: {
+      "12u": { lo: 0.06, hi: 0.25 },
+      "14u": { lo: 0.08, hi: 0.25 },
+      hs: { lo: 0.10, hi: 0.25 },
+      college: { lo: 0.10, hi: 0.25 },
+      pro: { lo: 0.10, hi: 0.25 },
+    },
+    explanation: {
+      "A+": "Great knee height at leg lift — you're getting into a strong balance point before starting your move to the plate.",
+      A: "Good knee height. You're getting enough lift to create momentum in your delivery.",
+      B: "Decent knee height but a bit more lift could help you generate more downhill momentum.",
+      C: "Your knee lift is low. This can limit the momentum you build in your delivery.",
+      D: "Very low knee lift — you're not creating enough of a downhill angle to maximize velocity.",
+      F: "Minimal knee lift. This limits your ability to create momentum toward the plate.",
+    },
+  },
+  {
+    key: "legLift.balancePoint",
+    label: "Balance at Lift",
+    phase: "legLift",
+    unit: "°",
+    weight: 1,
+    thresholds: {
+      "12u": { lo: 0, hi: 20 },
+      "14u": { lo: 0, hi: 18 },
+      hs: { lo: 0, hi: 15 },
+      college: { lo: 0, hi: 12 },
+      pro: { lo: 0, hi: 10 },
+    },
+    explanation: {
+      "A+": "Perfectly balanced at the top of your leg lift. Your trunk is stacked and you're ready to drive forward.",
+      A: "Good balance at leg lift. You're controlled at the top and set up well to move forward.",
+      B: "Slightly off balance. A small adjustment will help you initiate your drift more smoothly.",
+      C: "Your balance is off at leg lift — you're leaning too far forward or back, which can disrupt your timing.",
+      D: "Significant balance issues at the top of your lift. This is affecting everything that comes after.",
+      F: "Major balance issue. You're falling off the rubber instead of driving from it.",
+    },
+  },
   // === DRIFT METRICS ===
   {
     key: "drift.hipLeadDistance",
@@ -58,7 +104,7 @@ const METRIC_DEFS: MetricDef[] = [
       A: "Great hip lead — your hips are driving forward before your foot plants. This builds momentum.",
       B: "Good hip lead but there's room to get your hips moving sooner and further.",
       C: "Your hips aren't leading enough. You're leaving velocity on the table by not getting downhill early.",
-      D: "Minimal hip lead — your upper body is doing too much work. The Hershiser drill will fix this.",
+      D: "Minimal hip lead — your upper body is doing too much work. Walking windups will fix this.",
       F: "No hip lead detected. You're throwing all arm. We need to completely rebuild your momentum pattern.",
     },
   },
@@ -76,12 +122,12 @@ const METRIC_DEFS: MetricDef[] = [
       pro: { lo: 140, hi: 158 },
     },
     explanation: {
-      "A+": "Perfect back leg drive — powerful push-off creating maximum ground force.",
-      A: "Strong back leg push. You're using the ground well to generate forward momentum.",
-      B: "Decent back leg drive but you could get more power by pushing harder off the rubber.",
-      C: "Your back leg is collapsing a bit. You're losing power before you even start your stride.",
-      D: "Weak back leg drive. You're sliding off the rubber instead of pushing. Resistance band work will help.",
-      F: "Back leg is not contributing to your delivery. This is a major velocity limiter.",
+      "A+": "Perfect back leg — holding tension into the ground and transferring force up the chain. Elite ground connection.",
+      A: "Great back leg. You're holding tension into the rubber and using ground force to drive forward momentum.",
+      B: "Good back leg but you could hold more tension into the ground before releasing. Don't rush off the rubber.",
+      C: "Your back leg is losing tension too early. Focus on pressing into the ground longer before your stride.",
+      D: "Your back leg is collapsing instead of holding tension. You need to stay loaded into the ground longer before releasing forward.",
+      F: "Back leg is not creating any ground force. You need to learn to hold tension into the rubber through your leg drive.",
     },
   },
   // === FOOT STRIKE METRICS ===
@@ -203,11 +249,11 @@ const METRIC_DEFS: MetricDef[] = [
     unit: "°",
     weight: 2.5,
     thresholds: {
-      "12u": { lo: 150, hi: 180, injuryAbove: 190 },
-      "14u": { lo: 155, hi: 182, injuryAbove: 192 },
-      hs: { lo: 160, hi: 185, injuryAbove: 195 },
-      college: { lo: 165, hi: 185, injuryAbove: 195 },
-      pro: { lo: 170, hi: 190, injuryAbove: 200 },
+      "12u": { lo: 140, hi: 170, injuryAbove: 180 },
+      "14u": { lo: 140, hi: 175, injuryAbove: 180 },
+      hs: { lo: 140, hi: 180, injuryAbove: 180 },
+      college: { lo: 140, hi: 180, injuryAbove: 180 },
+      pro: { lo: 140, hi: 180, injuryAbove: 180 },
     },
     explanation: {
       "A+": "Elite layback. Your arm is cocking back to a position that generates maximum velocity while staying in a safe range.",
@@ -372,13 +418,13 @@ function gradeValue(
   def: MetricDef,
   level: AthleteLevel
 ): { grade: LetterGrade; color: GradeColor; injuryFlag: boolean } {
-  if (value === null) return { grade: "C", color: "yellow", injuryFlag: false };
+  if (value === null) return { grade: "B", color: "yellowGreen", injuryFlag: false };
 
   const t = def.thresholds[level];
 
-  // Check injury flags first
-  if (t.injuryAbove && value > t.injuryAbove) return { grade: "F", color: "injury", injuryFlag: true };
-  if (t.injuryBelow && value < t.injuryBelow) return { grade: "F", color: "injury", injuryFlag: true };
+  // Check injury flags — still flag but cap at C grade
+  if (t.injuryAbove && value > t.injuryAbove) return { grade: "C", color: "injury", injuryFlag: true };
+  if (t.injuryBelow && value < t.injuryBelow) return { grade: "C", color: "injury", injuryFlag: true };
 
   // Informational metrics (weight = 0)
   if (def.weight === 0) return { grade: "A", color: "green", injuryFlag: false };
@@ -396,11 +442,9 @@ function gradeValue(
     return { grade: "A", color: "green", injuryFlag: false };
   }
 
-  // Outside range — grade by distance
-  if (ratio < 1.3) return { grade: "B", color: "yellowGreen", injuryFlag: false };
-  if (ratio < 1.8) return { grade: "C", color: "yellow", injuryFlag: false };
-  if (ratio < 2.5) return { grade: "D", color: "orange", injuryFlag: false };
-  return { grade: "F", color: "red", injuryFlag: false };
+  // Outside range — wider B bucket, C is the floor
+  if (ratio < 1.6) return { grade: "B", color: "yellowGreen", injuryFlag: false };
+  return { grade: "C", color: "yellow", injuryFlag: false };
 }
 
 // ============================================================
@@ -408,7 +452,7 @@ function gradeValue(
 // ============================================================
 
 const GRADE_SCORES: Record<LetterGrade, number> = {
-  "A+": 98, A: 90, B: 78, C: 65, D: 50, F: 30,
+  "A+": 98, A: 93, B: 85, C: 75, D: 75, F: 75,
 };
 
 export function gradeAllMetrics(
@@ -435,7 +479,7 @@ export function gradeAllMetrics(
   }
 
   // Phase grades
-  const phases: PhaseName[] = ["drift", "footStrike", "mer", "release"];
+  const phases: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release"];
   const phaseGrades: PhaseGrade[] = phases.map((phase) => {
     const phaseMetrics = metricGrades.filter((m) => m.phase === phase);
     const gradedMetrics = phaseMetrics.filter((m) => {
@@ -453,19 +497,15 @@ export function gradeAllMetrics(
     const score = totalWeight > 0 ? Math.round(totalScore / totalWeight) : 50;
 
     let grade: LetterGrade;
-    if (score >= 95) grade = "A+";
-    else if (score >= 85) grade = "A";
-    else if (score >= 73) grade = "B";
-    else if (score >= 60) grade = "C";
-    else if (score >= 45) grade = "D";
-    else grade = "F";
+    if (score >= 97) grade = "A+";
+    else if (score >= 90) grade = "A";
+    else if (score >= 80) grade = "B";
+    else grade = "C";
 
     let color: GradeColor;
     if (grade === "A+" || grade === "A") color = "green";
     else if (grade === "B") color = "yellowGreen";
-    else if (grade === "C") color = "yellow";
-    else if (grade === "D") color = "orange";
-    else color = "red";
+    else color = "yellow";
 
     // Override if any metric has injury flag
     if (phaseMetrics.some((m) => m.injuryFlag)) color = "injury";
@@ -483,7 +523,7 @@ export function gradeAllMetrics(
   // Overall grade
   let overallTotal = 0;
   let overallWeight = 0;
-  const phaseWeights: Record<PhaseName, number> = { drift: 1, footStrike: 1.5, mer: 1.5, release: 1 };
+  const phaseWeights: Record<PhaseName, number> = { legLift: 0.5, drift: 1, footStrike: 1.5, mer: 1.5, release: 1 };
   for (const pg of phaseGrades) {
     const w = phaseWeights[pg.phase];
     overallTotal += pg.score * w;
@@ -492,19 +532,15 @@ export function gradeAllMetrics(
   const overallScore = overallWeight > 0 ? Math.round(overallTotal / overallWeight) : 50;
 
   let overallLetterGrade: LetterGrade;
-  if (overallScore >= 95) overallLetterGrade = "A+";
-  else if (overallScore >= 85) overallLetterGrade = "A";
-  else if (overallScore >= 73) overallLetterGrade = "B";
-  else if (overallScore >= 60) overallLetterGrade = "C";
-  else if (overallScore >= 45) overallLetterGrade = "D";
-  else overallLetterGrade = "F";
+  if (overallScore >= 97) overallLetterGrade = "A+";
+  else if (overallScore >= 90) overallLetterGrade = "A";
+  else if (overallScore >= 80) overallLetterGrade = "B";
+  else overallLetterGrade = "C";
 
   let overallColor: GradeColor;
   if (overallLetterGrade === "A+" || overallLetterGrade === "A") overallColor = "green";
   else if (overallLetterGrade === "B") overallColor = "yellowGreen";
-  else if (overallLetterGrade === "C") overallColor = "yellow";
-  else if (overallLetterGrade === "D") overallColor = "orange";
-  else overallColor = "red";
+  else overallColor = "yellow";
 
   // Build verdict
   const bestPhase = [...phaseGrades].sort((a, b) => b.score - a.score)[0];
@@ -514,14 +550,12 @@ export function gradeAllMetrics(
   let verdict: string;
   if (injuryMetrics.length > 0) {
     verdict = `Watch your ${injuryMetrics[0].label.toLowerCase()} — it's in a range that increases injury risk. Your ${bestPhase.label.toLowerCase()} is a strength to build on.`;
-  } else if (overallScore >= 85) {
+  } else if (overallScore >= 90) {
     verdict = `Strong mechanics — your ${bestPhase.label.toLowerCase()} is elite. Fine-tune your ${worstPhase.label.toLowerCase()} for the next level.`;
-  } else if (overallScore >= 70) {
+  } else if (overallScore >= 80) {
     verdict = `Good foundation. Your ${bestPhase.label.toLowerCase()} looks solid. Focus on ${worstPhase.label.toLowerCase()} to unlock more velocity.`;
-  } else if (overallScore >= 55) {
-    verdict = `Room to grow — start with your ${worstPhase.label.toLowerCase()}, where the biggest gains are. ${bestPhase.label} is working for you.`;
   } else {
-    verdict = `Let's rebuild from the ground up — start with ${worstPhase.label.toLowerCase()} and work forward. Every elite pitcher started somewhere.`;
+    verdict = `Room to grow — start with your ${worstPhase.label.toLowerCase()}, where the biggest gains are. Your ${bestPhase.label.toLowerCase()} is working for you.`;
   }
 
   return {

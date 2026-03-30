@@ -13,6 +13,7 @@
 import {
   type ValidFrame,
   type DetectedPhases,
+  type LegLiftMetrics,
   type DriftMetrics,
   type FootStrikeMetrics,
   type MERMetrics,
@@ -73,6 +74,32 @@ function estimateHeight(frame: ValidFrame): number {
   const torsoToFeet = dist(shoulderMid, ankleMid);
   // Head is roughly 20% additional height above shoulders
   return torsoToFeet * 1.25;
+}
+
+// ============================================================
+// LEG LIFT METRICS
+// ============================================================
+
+function calcLegLiftMetrics(
+  frames: ValidFrame[],
+  phases: DetectedPhases,
+  S: ReturnType<typeof getSideKeys>
+): LegLiftMetrics {
+  const f = frames[phases.legLift.frameIndex];
+  if (!f) return { leadKneeHeight: null, balancePoint: null };
+
+  // Lead knee height: how high knee gets relative to hip (positive = above hip)
+  const leadHipPt = kp(f, S.leadHip);
+  const leadKneePt = kp(f, S.leadKnee);
+  const leadKneeHeight = Math.round((leadHipPt.y - leadKneePt.y) * 100) / 100;
+
+  // Balance point: trunk angle from vertical (0 = perfectly balanced)
+  const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
+  const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
+  const trunkVecAngle = vecAngle(hipMid, shoulderMid);
+  const balancePoint = Math.round(Math.abs(-90 - trunkVecAngle));
+
+  return { leadKneeHeight, balancePoint };
 }
 
 // ============================================================
@@ -138,7 +165,7 @@ function calcFootStrikeMetrics(
   S: ReturnType<typeof getSideKeys>
 ): FootStrikeMetrics {
   const f = frames[phases.footStrike.frameIndex];
-  if (!f) return { strideLength: null, hipShoulderSep: null, leadKneeAngle: null, armCocked: null, elbowAngleAtFS: null, trunkAngle: null, glovePosition: null };
+  if (!f) return { strideLength: null, hipShoulderSep: null, leadKneeAngle: null, armCocked: null, elbowAngleAtFS: null, forearmVerticalAngle: null, trunkAngle: null, glovePosition: null };
 
   const height = estimateHeight(f);
 
@@ -337,6 +364,7 @@ export function calculateAllMetrics(
   const S = getSideKeys(throwingHand);
 
   return {
+    legLift: calcLegLiftMetrics(frames, phases, S),
     drift: calcDriftMetrics(frames, phases, S),
     footStrike: calcFootStrikeMetrics(frames, phases, S),
     mer: calcMERMetrics(frames, phases, S),

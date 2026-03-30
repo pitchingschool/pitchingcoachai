@@ -20,6 +20,7 @@ create table if not exists leads (
   created_at timestamptz default now(),
   first_name text not null,
   email text not null,
+  phone text,
   age integer,
   source text,
   analysis_id uuid references analyses(id)

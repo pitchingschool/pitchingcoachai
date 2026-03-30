@@ -32,9 +32,10 @@ export interface ValidFrame {
 // PHASE DETECTION
 // ============================================================
 
-export type PhaseName = "drift" | "footStrike" | "mer" | "release";
+export type PhaseName = "legLift" | "drift" | "footStrike" | "mer" | "release";
 
 export const PHASE_LABELS: Record<PhaseName, string> = {
+  legLift: "Leg Lift",
   drift: "Drift",
   footStrike: "Foot Strike",
   mer: "Max External Rotation",
@@ -42,6 +43,7 @@ export const PHASE_LABELS: Record<PhaseName, string> = {
 };
 
 export const PHASE_SHORT_LABELS: Record<PhaseName, string> = {
+  legLift: "Leg Lift",
   drift: "Drift",
   footStrike: "FFS",
   mer: "MER",
@@ -55,16 +57,21 @@ export interface PhaseResult {
 }
 
 export interface DetectedPhases {
-  legLift: PhaseResult;   // internal — used to anchor other phases
-  drift: PhaseResult;
-  footStrike: PhaseResult;
-  mer: PhaseResult;
-  release: PhaseResult;
+  legLift: PhaseResult;   // peak knee height — visible to user
+  drift: PhaseResult;     // forward momentum initiation
+  footStrike: PhaseResult; // front foot plants
+  mer: PhaseResult;       // max external rotation (arm cocked back)
+  release: PhaseResult;   // ball leaving hand
 }
 
 // ============================================================
 // BIOMECHANICAL METRICS
 // ============================================================
+
+export interface LegLiftMetrics {
+  leadKneeHeight: number | null;        // how high knee gets relative to hip
+  balancePoint: number | null;          // trunk angle from vertical (0 = balanced)
+}
 
 export interface DriftMetrics {
   hipLeadDistance: number | null;       // normalized by estimated height
@@ -104,6 +111,7 @@ export interface ReleaseMetrics {
 }
 
 export interface AllMetrics {
+  legLift: LegLiftMetrics;
   drift: DriftMetrics;
   footStrike: FootStrikeMetrics;
   mer: MERMetrics;
@@ -160,6 +168,12 @@ export interface OverallGrade {
 // DRILL PRESCRIPTIONS
 // ============================================================
 
+export interface ProductRecommendation {
+  name: string;
+  url: string;
+  campaign: string;
+}
+
 export interface DrillPrescription {
   name: string;
   description: string;
@@ -167,6 +181,7 @@ export interface DrillPrescription {
   phase: PhaseName;
   reps: string;
   priority: number; // 1 = highest
+  product?: ProductRecommendation;
 }
 
 // ============================================================
@@ -197,6 +212,8 @@ export interface OverlayConfig {
 // ANALYSIS RESULT (top-level output)
 // ============================================================
 
+export type FPSQuality = "excellent" | "good" | "mediocre" | "poor";
+
 export interface AnalysisResult {
   frames: ValidFrame[];
   phases: DetectedPhases;
@@ -210,6 +227,7 @@ export interface AnalysisResult {
   totalFrames: number;
   videoWidth: number;
   videoHeight: number;
+  fpsQuality: FPSQuality;
 }
 
 // ============================================================

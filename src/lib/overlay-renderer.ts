@@ -305,6 +305,20 @@ export function buildPhaseOverlays(
     return g?.value ?? 0;
   };
 
+  if (phase === "legLift") {
+    // Lead knee angle at leg lift
+    if (kp[S.leadHip] && kp[S.leadKnee] && kp[S.leadAnkle]) {
+      arcs.push({
+        vertex: kp[S.leadKnee],
+        startPoint: kp[S.leadHip],
+        endPoint: kp[S.leadAnkle],
+        angle: getValue("legLift.leadKneeHeight") * 100, // show as visual
+        label: "Knee Lift",
+        color: getColor("legLift.leadKneeHeight"),
+      });
+    }
+  }
+
   if (phase === "drift") {
     // Back leg drive angle
     if (kp[S.backHip] && kp[S.backKnee] && kp[S.backAnkle]) {
