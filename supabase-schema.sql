@@ -1,4 +1,5 @@
 -- Run this in your Supabase SQL editor to create the required tables
+-- Safe to run multiple times (uses IF NOT EXISTS / ADD COLUMN IF NOT EXISTS)
 
 create table if not exists analyses (
   id uuid primary key default gen_random_uuid(),
@@ -23,9 +24,14 @@ create table if not exists leads (
   phone text,
   age integer,
   source text,
-  analysis_id uuid references analyses(id)
+  analysis_id uuid references analyses(id),
+  drip_stage integer default 0
 );
 
--- Index for admin queries
+-- Add drip_stage if table already exists without it
+alter table leads add column if not exists drip_stage integer default 0;
+
+-- Indexes for admin queries and drip email cron
 create index if not exists leads_created_at_idx on leads(created_at desc);
 create index if not exists leads_email_idx on leads(email);
+create index if not exists leads_drip_stage_idx on leads(drip_stage);
