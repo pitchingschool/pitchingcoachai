@@ -79,6 +79,7 @@ export interface LegLiftMetrics {
 export interface DriftMetrics {
   hipLeadDistance: number | null;       // normalized by estimated height
   backLegDriveAngle: number | null;    // degrees at back knee
+  backLegTensionHold: number | null;   // 0-100 score: how well back leg holds tension through stride (100=holds, 0=pushes off early)
   leadKneeHeight: number | null;       // normalized relative to hip
   centerOfMassVelocity: number | null; // px/frame normalized
   armPosition: number | null;          // wrist Y relative to shoulder Y (lower = better)

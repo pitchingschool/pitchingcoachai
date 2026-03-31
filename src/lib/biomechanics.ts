@@ -113,7 +113,7 @@ function calcDriftMetrics(
   S: ReturnType<typeof getSideKeys>
 ): DriftMetrics {
   const f = frames[phases.drift.frameIndex];
-  if (!f) return { hipLeadDistance: null, backLegDriveAngle: null, leadKneeHeight: null, centerOfMassVelocity: null, armPosition: null };
+  if (!f) return { hipLeadDistance: null, backLegDriveAngle: null, backLegTensionHold: null, leadKneeHeight: null, centerOfMassVelocity: null, armPosition: null };
 
   const height = estimateHeight(f);
 
@@ -153,7 +153,62 @@ function calcDriftMetrics(
   const throwShoulder = kp(f, S.throwShoulder);
   const armPosition = Math.round((throwShoulder.y - throwWrist.y) * 100) / 100;
 
-  return { hipLeadDistance, backLegDriveAngle, leadKneeHeight, centerOfMassVelocity, armPosition };
+  // Back leg tension hold: track back knee angle from drift through foot strike.
+  // A pitcher who HOLDS tension keeps the back knee angle relatively stable (bent ~130-150°)
+  // through the stride, then it opens up at/near foot strike.
+  // A pitcher who PUSHES OFF extends the back leg early — the knee angle jumps to 160°+
+  // well before foot strike. We score 0-100: 100 = perfect hold, 0 = full early push-off.
+  let backLegTensionHold: number | null = null;
+  const driftIdx = phases.drift.frameIndex;
+  const fsIdx = phases.footStrike.frameIndex;
+
+  if (fsIdx > driftIdx + 2) {
+    const totalFrames = fsIdx - driftIdx;
+    const backKneeAngles: number[] = [];
+
+    for (let i = driftIdx; i <= fsIdx && i < frames.length; i++) {
+      const fr = frames[i];
+      if (!fr) continue;
+      const kneeAngle = angle3(kp(fr, S.backHip), kp(fr, S.backKnee), kp(fr, S.backAnkle));
+      backKneeAngles.push(kneeAngle);
+    }
+
+    if (backKneeAngles.length >= 3) {
+      const startAngle = backKneeAngles[0];
+      // Find at what % through the stride the back leg crosses 160° (near full extension)
+      // If it extends early (first 40%), that's pushing off. If late (last 30%), that's holding tension.
+      let extensionPoint = 1.0; // default: never fully extends (great)
+      for (let i = 0; i < backKneeAngles.length; i++) {
+        if (backKneeAngles[i] > 160 && startAngle < 160) {
+          extensionPoint = i / backKneeAngles.length;
+          break;
+        }
+      }
+
+      // Also measure how much the angle changes in the first half vs second half.
+      // Good mechanics: minimal change in first half, rapid extension in second half.
+      const midPoint = Math.floor(backKneeAngles.length / 2);
+      const firstHalfDelta = backKneeAngles[midPoint] - backKneeAngles[0];
+      const secondHalfDelta = backKneeAngles[backKneeAngles.length - 1] - backKneeAngles[midPoint];
+      const totalDelta = backKneeAngles[backKneeAngles.length - 1] - backKneeAngles[0];
+
+      // Score: extensionPoint contributes 60%, distribution contributes 40%
+      // extensionPoint: 1.0 = never extends (100 pts), 0.3 = extends at 30% (0 pts)
+      const extensionScore = Math.max(0, Math.min(100, ((extensionPoint - 0.3) / 0.7) * 100));
+
+      // distribution: if totalDelta > 0, ratio of second-half change to total change
+      // Good: most extension happens in second half (ratio > 0.7)
+      let distributionScore = 50; // neutral if no extension
+      if (totalDelta > 5) {
+        const lateRatio = Math.max(0, secondHalfDelta) / totalDelta;
+        distributionScore = Math.max(0, Math.min(100, lateRatio * 100));
+      }
+
+      backLegTensionHold = Math.round(extensionScore * 0.6 + distributionScore * 0.4);
+    }
+  }
+
+  return { hipLeadDistance, backLegDriveAngle, backLegTensionHold, leadKneeHeight, centerOfMassVelocity, armPosition };
 }
 
 // ============================================================

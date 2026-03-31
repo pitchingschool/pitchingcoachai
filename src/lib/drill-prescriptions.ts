@@ -75,6 +75,11 @@ const DRILL_MAP: Record<string, DrillEntry> = {
     description: "From the stretch position, rock back and forth slowly, feeling your back leg press into the ground. Hold the loaded position for 2 seconds before each throw — feel the tension from your back foot through your hip. The goal is to hold ground force as long as possible before releasing into your stride. Don't push off — stay connected to the ground and let the tension transfer up the chain.",
     reps: "10-12 throws at 75% effort, 2-second hold each rep",
   },
+  "drift.backLegTensionHold": {
+    name: "Slow-Stride Tension Hold",
+    description: "From the stretch, go through your delivery in SLOW MOTION. As you stride toward the plate, focus on keeping your back knee bent and loaded — feel the tension in your back leg into the ground. DO NOT let your back leg push you forward. Your back foot should stay connected to the rubber as long as possible, with the knee staying bent. Only let it release in the last third of your stride. Film from the side and check: does your back leg straighten early (pushing off) or stay bent through most of the stride (holding tension)? This is the #1 drill for fixing a pushy back leg.",
+    reps: "10 slow-motion reps, then 10 throws at 75% applying the feel",
+  },
   // FOOT STRIKE drills
   "footStrike.strideLength": {
     name: "Step-Behind Drill with Leg Lift",

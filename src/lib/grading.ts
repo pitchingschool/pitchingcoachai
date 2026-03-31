@@ -130,6 +130,29 @@ const METRIC_DEFS: MetricDef[] = [
       F: "Back leg is not creating any ground force. You need to learn to hold tension into the rubber through your leg drive.",
     },
   },
+  {
+    key: "drift.backLegTensionHold",
+    label: "Drive Leg Tension Hold",
+    phase: "drift",
+    unit: "/100",
+    weight: 3, // High weight — this is a key coaching factor
+    higherIsBetter: true,
+    thresholds: {
+      "12u": { lo: 40, hi: 100 },
+      "14u": { lo: 45, hi: 100 },
+      hs: { lo: 50, hi: 100 },
+      college: { lo: 55, hi: 100 },
+      pro: { lo: 60, hi: 100 },
+    },
+    explanation: {
+      "A+": "Elite drive leg — you're holding tension into the ground all the way through your stride. The back leg stays loaded and only extends late, right as you plant. This is how you create force without pushing off.",
+      A: "Great tension hold. Your back leg is staying loaded through most of the stride before releasing. This is the right pattern.",
+      B: "Decent drive leg but you're starting to extend a little early. Focus on feeling the ground under your back foot longer — don't let it push you, let it hold you.",
+      C: "Your back leg is extending too early — you're pushing off the rubber instead of holding tension. The leg should stay bent and loaded through most of the stride, then extend late. Right now it's straightening too soon.",
+      D: "Your drive leg is pushing off early. The back knee is extending well before foot strike, which means you're creating force by pushing instead of holding. Think about pressing INTO the rubber and holding that tension — don't push yourself off it.",
+      F: "The back leg is fully extending almost immediately. You need to completely retrain the drive leg pattern — hold tension, don't push off.",
+    },
+  },
   // === FOOT STRIKE METRICS (Stride Length 20% + H-S Sep 20% + Arm at SFC 15%) ===
   {
     key: "footStrike.strideLength",
