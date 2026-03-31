@@ -659,7 +659,9 @@ export async function runAnalysis(
     onProgress("Capturing key positions...", Math.round(((i + 1) / phaseKeys.length) * 100));
   }
 
-  const estimatedFPS = nativeFPS;
+  // Use container-probed FPS for quality assessment (not the extraction FPS,
+  // which may be capped at 60 when the seek-based fallback runs)
+  const estimatedFPS = probedFPS > 0 ? probedFPS : nativeFPS;
 
   onProgress("Analysis complete!", 100);
 
@@ -667,9 +669,9 @@ export async function runAnalysis(
   const videoHeight = video.videoHeight;
   video.remove();
 
-  const fpsQuality = nativeFPS >= 200 ? "excellent" as const
-    : nativeFPS >= 100 ? "good" as const
-    : nativeFPS >= 50 ? "mediocre" as const
+  const fpsQuality = estimatedFPS >= 200 ? "excellent" as const
+    : estimatedFPS >= 100 ? "good" as const
+    : estimatedFPS >= 50 ? "mediocre" as const
     : "poor" as const;
 
   return {
