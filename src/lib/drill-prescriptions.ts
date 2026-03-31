@@ -22,18 +22,18 @@ import {
 // GPS ATHLETICS PRODUCT LINKS
 // ============================================================
 
-const GPS_BASE = "https://gps-athletics.com/products";
+const GPS_BASE = "https://gps-athletics.com";
 const UTM = (campaign: string) =>
   `?utm_source=pitchingcoachai&utm_medium=analysis&utm_campaign=${campaign}`;
 
 const GPS_PRODUCTS = {
   weightedBalls: {
     name: "Soft-Shell Weighted Balls",
-    url: `${GPS_BASE}/soft-shell-weighted-balls`,
+    url: GPS_BASE,
   },
   resistanceBands: {
     name: "Resistance Bands",
-    url: `${GPS_BASE}/resistance-bands`,
+    url: GPS_BASE,
   },
 } as const;
 
