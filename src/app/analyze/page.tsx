@@ -216,7 +216,30 @@ export default function AnalyzePage() {
       analytics.analysisCompleted(analysisResult.grade.score, analysisResult.grade.grade);
 
       const skipGate = document.cookie.includes("pcai_lead=1");
-      setStage(skipGate ? "results" : "emailGate");
+      if (skipGate) {
+        // Returning user — silently track this analysis with stored info
+        try {
+          const stored = JSON.parse(localStorage.getItem("pcai_lead_info") || "{}");
+          if (stored.email) {
+            fetch("/api/lead", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                firstName: stored.firstName || "Returning",
+                email: stored.email,
+                phone: stored.phone || null,
+                age: parseInt(stored.age) || 14,
+                source: "repeat-analysis",
+                overallScore: analysisResult.grade.score || null,
+                metrics: analysisResult.metrics || null,
+              }),
+            }).catch(() => {});
+          }
+        } catch { /* Non-blocking */ }
+        setStage("results");
+      } else {
+        setStage("emailGate");
+      }
     } catch (err: any) {
       analytics.analysisError(err.message || "unknown");
       setError(err.message || "Analysis failed. Try a different video.");
@@ -244,6 +267,14 @@ export default function AnalyzePage() {
     } catch { /* Non-blocking */ }
     analytics.leadSubmitted(source || null);
     document.cookie = "pcai_lead=1; max-age=31536000; path=/";
+    try {
+      localStorage.setItem("pcai_lead_info", JSON.stringify({
+        firstName: firstName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || null,
+        age,
+      }));
+    } catch { /* localStorage may be unavailable */ }
     setSubmitting(false);
     setStage("results");
   }, [firstName, email, phone, age, source, result]);
