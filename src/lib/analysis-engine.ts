@@ -552,11 +552,22 @@ export async function runAnalysis(
   // Stage 0.75: For long videos, detect delivery window(s)
   let deliveryStart = 0;
   let deliveryEnd = fullDuration;
-  const totalEncodedFrames = Math.floor(fullDuration * probedFPS);
 
-  if (totalEncodedFrames > MAX_ANALYSIS_FRAMES && fullDuration > 5) {
+  // Use actual encoded frame count from the container probe when available,
+  // because the video element reports PLAYBACK duration (e.g. 16s for a 2s clip at 240fps played at 30fps).
+  const totalEncodedFrames = probe?.totalEncodedFrames
+    ? probe.totalEncodedFrames
+    : Math.floor(fullDuration * probedFPS);
+
+  // Real capture duration = total encoded frames / encoded FPS.
+  // A 240fps slo-mo clip with 480 frames is only 2s of real-time action.
+  const realDurationSec = totalEncodedFrames / probedFPS;
+
+  // Only run the slow delivery scan for genuinely long clips (>8s of real action AND >1800 frames).
+  // Most pitch clips are 2-4s of real action, even if playback duration is 15-20s due to slo-mo.
+  if (totalEncodedFrames > MAX_ANALYSIS_FRAMES && realDurationSec > 8) {
     // Long video — need two-pass approach
-    console.log(`[Pipeline] Long video: ${fullDuration.toFixed(1)}s, ~${totalEncodedFrames} frames at ${probedFPS}fps. Running delivery detection.`);
+    console.log(`[Pipeline] Long video: ${realDurationSec.toFixed(1)}s real (${fullDuration.toFixed(1)}s playback), ~${totalEncodedFrames} frames at ${probedFPS}fps. Running delivery detection.`);
 
     const scanVideo = document.createElement("video");
     scanVideo.playsInline = true;
