@@ -7,7 +7,7 @@ let cachedCount: number | null = null;
 let cacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-const SEED_COUNT = 2400; // baseline before tracking started
+const SEED_COUNT = 0; // real count only
 
 export async function GET() {
   try {

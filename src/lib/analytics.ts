@@ -1,18 +1,12 @@
 /**
  * PitchingCoachAI — Simple Analytics
  *
- * Lightweight event tracking using Supabase.
+ * Lightweight event tracking via server-side API route.
  * No external dependencies. Privacy-friendly (no PII in events).
  */
 
-const SUPABASE_URL =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://sqzuolsexkmohmdopwrv.supabase.co")
-    : "";
-
 /**
  * Track an analytics event. Non-blocking, fire-and-forget.
- * Uses the anon key (public) so no secrets needed.
  */
 export function trackEvent(
   event: string,
@@ -20,32 +14,20 @@ export function trackEvent(
 ): void {
   if (typeof window === "undefined") return;
 
-  // Use navigator.sendBeacon for reliable tracking that survives page unloads
   const payload = {
     event,
     properties: properties || {},
     url: window.location.pathname,
     referrer: document.referrer || null,
-    timestamp: new Date().toISOString(),
-    screen_width: window.innerWidth,
-    user_agent: navigator.userAgent.slice(0, 200),
   };
 
-  // Fire and forget via fetch (non-blocking)
   try {
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!anonKey || !SUPABASE_URL) return;
-
-    fetch(`${SUPABASE_URL}/rest/v1/events`, {
+    fetch("/api/event", {
       method: "POST",
-      headers: {
-        apikey: anonKey,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      keepalive: true, // survives page navigation
-    }).catch(() => {}); // silently fail
+      keepalive: true,
+    }).catch(() => {});
   } catch {
     // Analytics should never break the app
   }

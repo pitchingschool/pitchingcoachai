@@ -44,16 +44,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 1. Save analysis
+    // 1. Save analysis — metrics are nested by phase
     const analysis = await supabaseInsert("analyses", {
       overall_score: overallScore,
-      hip_shoulder_sep: metrics?.hipShoulderSep,
-      lead_knee_fs: metrics?.leadKneeFS,
-      shoulder_abduction: metrics?.shoulderAbduction,
-      elbow_flexion: metrics?.elbowFlexion,
-      trunk_tilt: metrics?.trunkTilt,
-      arm_slot: metrics?.armSlot,
-      lead_knee_extension: metrics?.leadKneeExtension,
+      hip_shoulder_sep: metrics?.footStrike?.hipShoulderSep ?? null,
+      lead_knee_fs: metrics?.footStrike?.leadKneeAngle ?? null,
+      shoulder_abduction: metrics?.mer?.shoulderAbduction ?? null,
+      elbow_flexion: metrics?.mer?.elbowFlexion ?? null,
+      trunk_tilt: metrics?.release?.trunkFlexion ?? null,
+      arm_slot: metrics?.release?.armSlot ?? null,
+      lead_knee_extension: metrics?.release?.leadKneeExtension ?? null,
     });
 
     // 2. Save lead (drip_stage = 0 means welcome email sent, ready for drip sequence)
