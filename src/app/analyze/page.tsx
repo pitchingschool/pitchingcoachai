@@ -74,6 +74,10 @@ export default function AnalyzePage() {
   // LOAD MEDIAPIPE
   // ============================================================
   useEffect(() => {
+    analytics.pageView("analyze");
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     async function init() {
       try {

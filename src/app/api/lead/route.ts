@@ -51,9 +51,9 @@ export async function POST(req: NextRequest) {
       lead_knee_fs: metrics?.footStrike?.leadKneeAngle ?? null,
       shoulder_abduction: metrics?.mer?.shoulderAbduction ?? null,
       elbow_flexion: metrics?.mer?.elbowFlexion ?? null,
-      trunk_tilt: metrics?.release?.trunkFlexion ?? null,
+      trunk_tilt: metrics?.release?.trunkForwardFlexion ?? null,
       arm_slot: metrics?.release?.armSlot ?? null,
-      lead_knee_extension: metrics?.release?.leadKneeExtension ?? null,
+      lead_knee_extension: metrics?.release?.leadLegExtension ?? null,
     });
 
     // 2. Save lead (drip_stage = 0 means welcome email sent, ready for drip sequence)

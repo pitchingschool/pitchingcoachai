@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { analytics } from "@/lib/analytics";
 
 function useAnalysisCount() {
   const [count, setCount] = useState(2400);
@@ -75,6 +76,10 @@ function SampleReport() {
 
 export default function HomePage() {
   const analysisCount = useAnalysisCount();
+
+  useEffect(() => {
+    analytics.pageView("home");
+  }, []);
 
   return (
     <div className="min-h-screen bg-brand-dark">
