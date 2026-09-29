@@ -714,9 +714,18 @@ export default function AnalyzePage() {
                       : "AI analysis gives you the data. A real pitching coach turns it into a development plan. Mike Grady has 20 years of experience coaching 100+ pitchers from 10U to college."}
                   </p>
                   <div className="space-y-2">
-                    <a href="https://gradyspitchingschool.com" target="_blank" rel="noopener noreferrer"
+                    <a href="https://www.gradyspitchingschool.com/video-review?utm_source=pitchingcoachai&utm_medium=app&utm_campaign=results_cta"
+                      target="_blank" rel="noopener noreferrer"
                       className="block w-full py-3 rounded-xl bg-white text-brand-red font-bold hover:bg-gray-100 transition">
-                      Book a Session with Coach Grady &rarr;
+                      Get a Coach Grady Video Review, $99 &rarr;
+                    </a>
+                    <p className="text-xs text-white/70 pb-1">
+                      Send your video from anywhere. Get a 10 to 15 minute narrated breakdown and your top 3 fixes within 5 business days.
+                    </p>
+                    <a href="https://www.gradyspitchingschool.com?utm_source=pitchingcoachai&utm_medium=app&utm_campaign=results_cta_inperson"
+                      target="_blank" rel="noopener noreferrer"
+                      className="block w-full py-3 rounded-xl bg-white/20 text-white font-medium hover:bg-white/30 transition text-sm">
+                      Near North Canton, Ohio? Train in Person
                     </a>
                     <a href="mailto:mike@gradyspitchingschool.com?subject=PitchingCoachAI%20Report%20-%20Question"
                       className="block w-full py-3 rounded-xl bg-white/20 text-white font-medium hover:bg-white/30 transition text-sm">
