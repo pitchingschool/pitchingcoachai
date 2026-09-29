@@ -25,22 +25,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "SUPABASE_SERVICE_KEY not configured" }, { status: 500 });
     }
 
-    const res = await fetch(
-      `${SB_URL}/rest/v1/leads?select=*,analyses(overall_score)&order=created_at.desc&limit=500`,
-      {
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-        },
+    // Page through every lead. Supabase caps each request, so fetch in chunks
+    // until a short page comes back (hard stop at 50k rows as a safety net).
+    const PAGE = 1000;
+    const leads: any[] = [];
+    for (let offset = 0; offset < 50_000; offset += PAGE) {
+      const res = await fetch(
+        `${SB_URL}/rest/v1/leads?select=*,analyses(overall_score)&order=created_at.desc&limit=${PAGE}&offset=${offset}`,
+        {
+          headers: {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        const text = await res.text();
+        return NextResponse.json({ error: `Supabase ${res.status}: ${text}` }, { status: 500 });
       }
-    );
 
-    if (!res.ok) {
-      const text = await res.text();
-      return NextResponse.json({ error: `Supabase ${res.status}: ${text}` }, { status: 500 });
+      const page = await res.json();
+      leads.push(...page);
+      if (!Array.isArray(page) || page.length < PAGE) break;
     }
-
-    const leads = await res.json();
 
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000).toISOString();

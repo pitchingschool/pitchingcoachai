@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { rateLimit } from "@/lib/rate-limit";
+import { syncLeadToMailchimp } from "@/lib/mailchimp";
 
 // Force Node.js runtime (not Edge)
 export const runtime = "nodejs";
@@ -67,7 +68,10 @@ export async function POST(req: NextRequest) {
       drip_stage: 0,
     });
 
-    // 3. Send welcome email via Resend
+    // 3. Add the lead to Mailchimp for the weekly marketing emails (never blocks the signup)
+    await syncLeadToMailchimp({ email, firstName, age: parseInt(age), score: overallScore ?? null });
+
+    // 4. Send welcome email via Resend
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const scoreText = overallScore != null ? ` (Score: ${Math.round(overallScore)}/100)` : "";
@@ -96,19 +100,19 @@ export async function POST(req: NextRequest) {
     <p style="font-size: 13px; line-height: 1.6; margin: 0;">The #1 thing that separates 70 mph pitchers from 85+ is hip-shoulder separation and lead leg bracing at release. If your report flagged either of those, that's exactly where I'd start in a lesson. Upload a new video after your next bullpen to track your progress.</p>
   </div>
 
-  <p style="font-size: 14px; line-height: 1.7;">If you want expert eyes on your mechanics, I do in-person and virtual lessons for pitchers anywhere in the country. 30 minutes, your video, specific feedback — no fluff.</p>
+  <p style="font-size: 14px; line-height: 1.7;">Want a coach to tell you exactly what to work on first? Send me a side view and a behind view and I'll send back a 10 to 15 minute narrated video breakdown plus a written plan with your top 3 fixes. $99, back to you within 5 business days.</p>
 
   <div style="text-align: center; margin: 24px 0;">
-    <a href="https://gradyspitchingschool.com" style="display: inline-block; background: #dc2626; color: #fff; font-weight: 700; font-size: 14px; padding: 12px 32px; border-radius: 8px; text-decoration: none;">Book a Lesson with Mike</a>
+    <a href="https://www.gradyspitchingschool.com/video-review?utm_source=pcai&utm_medium=email&utm_campaign=welcome" style="display: inline-block; background: #dc2626; color: #fff; font-weight: 700; font-size: 14px; padding: 12px 32px; border-radius: 8px; text-decoration: none;">Get My Video Review</a>
   </div>
 
   <p style="font-size: 14px; line-height: 1.7;">Or just reply to this email. I read every one.</p>
 
   <hr style="border: none; border-top: 1px solid #222; margin: 24px 0;" />
 
-  <p style="font-size: 12px; color: #666;">Mike Grady — Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
+  <p style="font-size: 12px; color: #666;">Mike Grady, Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
 
-  <p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate — it's free for everyone.</p>
+  <p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate. It's free for everyone.</p>
 </div>`,
       });
     } catch (emailErr) {
