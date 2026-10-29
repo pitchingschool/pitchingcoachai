@@ -16,6 +16,15 @@ create table if not exists analyses (
   top_priorities jsonb
 );
 
+-- Coach measurement model columns (also in supabase/migrations/)
+alter table analyses add column if not exists throwing_hand text;
+alter table analyses add column if not exists declared_hand text;
+alter table analyses add column if not exists level text;
+alter table analyses add column if not exists app_version text;
+alter table analyses add column if not exists phase_grades jsonb;
+alter table analyses add column if not exists metrics_full jsonb;
+alter table analyses add column if not exists framing_warning boolean;
+
 create table if not exists leads (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),

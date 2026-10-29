@@ -38,13 +38,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { firstName, email, phone, age, source, overallScore, metrics } = body;
+    const {
+      firstName, email, phone, age, source, overallScore, metrics,
+      throwingHand, declaredHand, level, appVersion,
+      phaseFrames, phaseGrades, metricsFull, framingWarning,
+    } = body;
 
     if (!firstName || !email || !age) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 1. Save analysis — metrics are nested by phase
+    // 1. Save analysis. Old flat columns keep being written for backward
+    // compatibility; the new columns carry everything the coach needs to
+    // review a report (see supabase/migrations/).
     const analysis = await supabaseInsert("analyses", {
       overall_score: overallScore,
       hip_shoulder_sep: metrics?.footStrike?.hipShoulderSep ?? null,
@@ -54,6 +60,15 @@ export async function POST(req: NextRequest) {
       trunk_tilt: metrics?.release?.trunkForwardFlexion ?? null,
       arm_slot: metrics?.release?.armSlot ?? null,
       lead_knee_extension: metrics?.release?.leadLegExtension ?? null,
+      // New measurement-model columns
+      throwing_hand: throwingHand === "left" || throwingHand === "right" ? throwingHand : null,
+      declared_hand: declaredHand === "left" || declaredHand === "right" ? declaredHand : null,
+      level: typeof level === "string" ? level : null,
+      app_version: typeof appVersion === "string" ? appVersion : null,
+      phase_frames: phaseFrames ?? null,
+      phase_grades: phaseGrades ?? null,
+      metrics_full: metricsFull ?? null,
+      framing_warning: typeof framingWarning === "boolean" ? framingWarning : null,
     });
 
     // 2. Save lead (drip_stage = 0 means welcome email sent, ready for drip sequence)
@@ -96,7 +111,7 @@ export async function POST(req: NextRequest) {
     <p style="font-size: 13px; line-height: 1.6; margin: 0;">The #1 thing that separates 70 mph pitchers from 85+ is hip-shoulder separation and lead leg bracing at release. If your report flagged either of those, that's exactly where I'd start in a lesson. Upload a new video after your next bullpen to track your progress.</p>
   </div>
 
-  <p style="font-size: 14px; line-height: 1.7;">If you want expert eyes on your mechanics, I do in-person and virtual lessons for pitchers anywhere in the country. 30 minutes, your video, specific feedback — no fluff.</p>
+  <p style="font-size: 14px; line-height: 1.7;">If you want expert eyes on your mechanics, I do in-person and virtual lessons for pitchers anywhere in the country. 30 minutes, your video, specific feedback, no fluff.</p>
 
   <div style="text-align: center; margin: 24px 0;">
     <a href="https://gradyspitchingschool.com" style="display: inline-block; background: #dc2626; color: #fff; font-weight: 700; font-size: 14px; padding: 12px 32px; border-radius: 8px; text-decoration: none;">Book a Lesson with Mike</a>
@@ -106,9 +121,9 @@ export async function POST(req: NextRequest) {
 
   <hr style="border: none; border-top: 1px solid #222; margin: 24px 0;" />
 
-  <p style="font-size: 12px; color: #666;">Mike Grady — Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
+  <p style="font-size: 12px; color: #666;">Mike Grady, Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
 
-  <p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate — it's free for everyone.</p>
+  <p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate, it's free for everyone.</p>
 </div>`,
       });
     } catch (emailErr) {
