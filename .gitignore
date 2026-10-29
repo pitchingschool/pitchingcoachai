@@ -12,3 +12,6 @@ out/
 fixtures/*
 !fixtures/labels.json
 !fixtures/README.md
+
+# Harness build output
+.harness/
