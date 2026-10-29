@@ -68,13 +68,23 @@ function smoothSeries(series: (number | null)[], sigma = 2): number[] {
   return out;
 }
 
-/** Per-frame speed of one keypoint, null where visibility is too low. */
+/** Per-frame speed of one keypoint, null where visibility is too low.
+ *  Single-frame spikes that tower over BOTH neighbors are tracking
+ *  jumps (the landmark teleported for one frame), not motion: nulled. */
 function speedSeries(frames: ValidFrame[], key: string): (number | null)[] {
   const out: (number | null)[] = [null];
   for (let i = 1; i < frames.length; i++) {
     const a = kpAt(frames[i - 1], key);
     const b = kpAt(frames[i], key);
     out.push(a && b ? dist(a, b) : null);
+  }
+  for (let i = 1; i < out.length - 1; i++) {
+    const v = out[i];
+    const p = out[i - 1];
+    const n = out[i + 1];
+    if (v !== null && p !== null && n !== null && v > 0.01 && v > 3 * p && v > 3 * n) {
+      out[i] = null;
+    }
   }
   return out;
 }
@@ -185,6 +195,7 @@ export function detectPhases(
   const relHi = Math.min(n - 1, anchorIdx + 2 * scale);
   let releaseIdx = -1;
   let bestExt = -Infinity;
+  const extAt: (number | null)[] = new Array(n).fill(null);
   for (let i = relLo; i <= relHi; i++) {
     const sh = kpAt(frames[i], S.throwShoulder);
     const el = kpAt(frames[i], S.throwElbow);
@@ -195,12 +206,23 @@ export function detectPhases(
     // Release happens with the hand out FRONT, not still laid back
     const wristForward = (wr.x - sh.x) * throwDirSign;
     if (wristForward < 0) continue;
-    // Max extension, biased toward the speed peak: the follow-through
-    // can also show a fully extended arm, but never near peak speed.
-    const ext = dist(sh, wr) / chain - Math.abs(i - anchorIdx) * (0.03 / scale);
+    const ext = dist(sh, wr) / chain;
+    extAt[i] = ext;
     if (ext > bestExt) {
       bestExt = ext;
       releaseIdx = i;
+    }
+  }
+  // The follow-through also shows a fully extended arm, so take the
+  // EARLIEST frame that reaches essentially-max extension: that is the
+  // moment the ball leaves; everything after is deceleration.
+  if (releaseIdx !== -1) {
+    for (let i = relLo; i <= relHi; i++) {
+      const e = extAt[i];
+      if (e !== null && e >= bestExt - 0.015) {
+        releaseIdx = i;
+        break;
+      }
     }
   }
 
