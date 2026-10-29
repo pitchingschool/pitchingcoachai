@@ -347,150 +347,159 @@ export async function extractFramesWebCodecs(
     : `${probe.encodedFPS}fps`;
   onProgress(`Decoding ${fpsLabel} video...`, 0, `0 / ${totalTargetFrames} frames`);
 
-  // ── Step 6: Decode in batches + process ────────────────────
-  for (let batchStart = 0; batchStart < decodeSamples.length; batchStart += DECODE_BATCH_SIZE) {
-    if (decodeError) throw decodeError;
+  // ── Step 6: Continuous decode + inline processing ──────────
+  // The decoder is fed continuously and flushed ONCE at the end.
+  // The old design flushed after every 30-sample batch, but per the
+  // WebCodecs spec a flush resets the decoder and the next chunk must
+  // be a KEY frame, so every batch that did not start on a keyframe
+  // silently dropped all its frames until the next keyframe arrived.
+  // Memory stays bounded by processing (and closing) output frames as
+  // they arrive and yielding when the queues grow.
 
-    const batchEnd = Math.min(batchStart + DECODE_BATCH_SIZE, decodeSamples.length);
+  const processFrame = (frame: VideoFrame) => {
+    const frameTimeUs = frame.timestamp;
+    const frameTimeTicks = Math.round((frameTimeUs * timescale) / 1_000_000);
+    const inWindow = frameTimeTicks >= windowStart && frameTimeTicks <= windowEnd;
 
-    // Feed batch to decoder
-    for (let i = batchStart; i < batchEnd; i++) {
-      const sample = decodeSamples[i];
-      try {
-        decoder.decode(
-          new EncodedVideoChunk({
-            type: sample.is_sync ? "key" : "delta",
-            timestamp: Math.round((sample.cts * 1_000_000) / timescale), // microseconds
-            duration: Math.round((sample.duration * 1_000_000) / timescale),
-            data: sample.data,
-          })
-        );
-      } catch (e) {
-        console.warn(`[WebCodecs] Failed to decode sample ${i}:`, e);
-      }
+    if (!inWindow) {
+      frame.close();
+      return;
     }
 
-    // Flush to get all output frames for this batch (with timeout)
+    const shouldAnalyze =
+      windowFrameCount % subsampleRate === 0 && processedCount < maxFrames;
+    windowFrameCount++;
+
+    if (!shouldAnalyze) {
+      frame.close();
+      return;
+    }
+
+    // Draw decoded frame to canvas for MediaPipe
+    ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+    frame.close(); // release GPU memory as soon as the pixels are copied
+
+    // Run pose detection
+    const timeMs = Math.round(frameTimeUs / 1000);
+    const mpTs = Math.max(timeMs, lastMpTs + 1); // MediaPipe requires monotonic timestamps
+    lastMpTs = mpTs;
+
+    let poseResult: any;
     try {
-      await withTimeout(decoder.flush(), 10000, "Decoder flush");
-    } catch (flushErr) {
-      console.warn(`[WebCodecs] Flush timeout at batch ${batchStart}, returning what we have`);
-      // Close any queued frames
-      for (const f of outputQueue) f.close();
-      outputQueue.length = 0;
-      break;
+      poseResult = poseLandmarker.detectForVideo(canvas, mpTs);
+    } catch {
+      processedCount++;
+      return;
     }
 
-    // Sort output frames by presentation timestamp (handles B-frame reordering)
-    outputQueue.sort((a, b) => a.timestamp - b.timestamp);
+    if (poseResult?.landmarks?.[0]) {
+      const rawLM = poseResult.landmarks[0];
+      const keypoints: Keypoints = {};
 
-    // Process each decoded frame
-    for (const frame of outputQueue) {
-      const frameTimeUs = frame.timestamp;
-      const frameTimeTicks = Math.round((frameTimeUs * timescale) / 1_000_000);
-      const inWindow = frameTimeTicks >= windowStart && frameTimeTicks <= windowEnd;
+      for (const [idx, name] of Object.entries(LM_NAMES)) {
+        const lm = rawLM[Number(idx)];
+        if (lm) {
+          keypoints[name] = {
+            x: lm.x,
+            y: lm.y,
+            z: lm.z,
+            visibility: lm.visibility || 0,
+          };
+        }
+      }
 
-      if (inWindow) {
-        const shouldAnalyze =
-          windowFrameCount % subsampleRate === 0 &&
-          processedCount < maxFrames;
-
-        if (shouldAnalyze) {
-          // Draw decoded frame to canvas for MediaPipe
-          ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
-
-          // Run pose detection
-          const timeMs = Math.round(frameTimeUs / 1000);
-          const mpTs = Math.max(timeMs, lastMpTs + 1); // MediaPipe requires monotonic timestamps
-          lastMpTs = mpTs;
-
-          let poseResult: any;
-          try {
-            poseResult = poseLandmarker.detectForVideo(canvas, mpTs);
-          } catch {
-            // Skip frames that fail pose detection
-            processedCount++;
-            frame.close();
-            windowFrameCount++;
-            continue;
-          }
-
-          if (poseResult?.landmarks?.[0]) {
-            const rawLM = poseResult.landmarks[0];
-            const keypoints: Keypoints = {};
-
-            for (const [idx, name] of Object.entries(LM_NAMES)) {
-              const lm = rawLM[Number(idx)];
-              if (lm) {
-                keypoints[name] = {
-                  x: lm.x,
-                  y: lm.y,
-                  z: lm.z,
-                  visibility: lm.visibility || 0,
-                };
-              }
-            }
-
-            // World landmarks (meters, hip-centered 3D). Required for true
-            // hip-shoulder separation; without them it is "not measured".
-            let worldKeypoints: Keypoints | undefined;
-            const rawWorld = poseResult.worldLandmarks?.[0];
-            if (rawWorld) {
-              worldKeypoints = {};
-              for (const [idx, name] of Object.entries(LM_NAMES)) {
-                const lm = rawWorld[Number(idx)];
-                if (lm) {
-                  worldKeypoints[name] = {
-                    x: lm.x,
-                    y: lm.y,
-                    z: lm.z,
-                    visibility: lm.visibility || 0,
-                  };
-                }
-              }
-            }
-
-            const visibleCount = REQUIRED_KEYPOINTS.filter(
-              (k) => keypoints[k] && keypoints[k].visibility >= MIN_VISIBILITY
-            ).length;
-
-            if (visibleCount >= MIN_REQUIRED_VISIBLE) {
-              validFrames.push({
-                frameIndex: validFrames.length,
-                timestampMs: timeMs,
-                keypoints,
-                worldKeypoints,
-                phase: null,
-              });
-            }
-          }
-
-          processedCount++;
-
-          // Update progress
-          if (processedCount % 5 === 0 || processedCount === totalTargetFrames) {
-            const pct = Math.round((processedCount / totalTargetFrames) * 100);
-            onProgress(
-              `Decoding ${fpsLabel} video...`,
-              pct,
-              `${processedCount} / ${totalTargetFrames} frames`
-            );
+      // World landmarks (meters, hip-centered 3D). Required for true
+      // hip-shoulder separation; without them it is "not measured".
+      let worldKeypoints: Keypoints | undefined;
+      const rawWorld = poseResult.worldLandmarks?.[0];
+      if (rawWorld) {
+        worldKeypoints = {};
+        for (const [idx, name] of Object.entries(LM_NAMES)) {
+          const lm = rawWorld[Number(idx)];
+          if (lm) {
+            worldKeypoints[name] = {
+              x: lm.x,
+              y: lm.y,
+              z: lm.z,
+              visibility: lm.visibility || 0,
+            };
           }
         }
-
-        windowFrameCount++;
       }
 
-      // CRITICAL: Close the VideoFrame to release GPU memory
-      frame.close();
+      const visibleCount = REQUIRED_KEYPOINTS.filter(
+        (k) => keypoints[k] && keypoints[k].visibility >= MIN_VISIBILITY
+      ).length;
+
+      if (visibleCount >= MIN_REQUIRED_VISIBLE) {
+        validFrames.push({
+          frameIndex: validFrames.length,
+          timestampMs: timeMs,
+          keypoints,
+          worldKeypoints,
+          phase: null,
+        });
+      }
     }
 
-    // Clear the queue for next batch
-    outputQueue.length = 0;
+    processedCount++;
 
-    // Yield to browser event loop (prevents UI freeze)
-    await new Promise((r) => setTimeout(r, 0));
+    // Update progress
+    if (processedCount % 5 === 0 || processedCount === totalTargetFrames) {
+      const pct = Math.round((processedCount / totalTargetFrames) * 100);
+      onProgress(
+        `Decoding ${fpsLabel} video...`,
+        pct,
+        `${processedCount} / ${totalTargetFrames} frames`
+      );
+    }
+  };
+
+  // VideoDecoder emits frames in presentation order, so the queue can
+  // be drained first-in-first-out as outputs arrive.
+  const drainOutputs = () => {
+    while (outputQueue.length > 0) {
+      processFrame(outputQueue.shift()!);
+    }
+  };
+
+  for (let i = 0; i < decodeSamples.length; i++) {
+    if (decodeError) throw decodeError;
+
+    const sample = decodeSamples[i];
+    try {
+      decoder.decode(
+        new EncodedVideoChunk({
+          type: sample.is_sync ? "key" : "delta",
+          timestamp: Math.round((sample.cts * 1_000_000) / timescale), // microseconds
+          duration: Math.round((sample.duration * 1_000_000) / timescale),
+          data: sample.data,
+        })
+      );
+    } catch (e) {
+      console.warn(`[WebCodecs] Failed to decode sample ${i}:`, e);
+    }
+
+    drainOutputs();
+
+    // Backpressure: let the decoder catch up and the UI breathe
+    if (
+      decoder.decodeQueueSize > DECODE_BATCH_SIZE ||
+      outputQueue.length > DECODE_BATCH_SIZE ||
+      i % DECODE_BATCH_SIZE === DECODE_BATCH_SIZE - 1
+    ) {
+      await new Promise((r) => setTimeout(r, 0));
+      drainOutputs();
+    }
   }
+
+  // Single flush at the end to collect the tail
+  try {
+    await withTimeout(decoder.flush(), 10000, "Decoder flush");
+  } catch {
+    console.warn("[WebCodecs] Final flush timeout, returning what we have");
+  }
+  drainOutputs();
 
   // Clean up decoder
   try {
