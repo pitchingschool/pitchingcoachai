@@ -7,3 +7,8 @@ out/
 
 # Local Netlify folder
 .netlify
+
+# Coach-label regression clips: minors' videos, never committed (public repo)
+fixtures/*
+!fixtures/labels.json
+!fixtures/README.md

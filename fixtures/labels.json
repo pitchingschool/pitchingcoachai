@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Coach Grady's frame-by-frame labels for regression clips. Clips live in this folder locally and are NEVER committed (minors' videos, public repo). Frame = time x 30 (app frame numbering). Tolerances: frames within 2, angles within 10 degrees.",
+  "clips": {
+    "test-clip-2026-10-lhp15.mov": {
+      "athlete": "anonymized: 15yo HS freshman, LHP, 5'4\", 110 lbs",
+      "video": "side view from first base side (open side for LHP), 1920x1080, 30fps, HEVC, ~9.3s, pitcher ~1/8 frame height",
+      "throwingHand": "left",
+      "level": "highschool",
+      "fps": 30,
+      "phases": {
+        "footStrike": { "frame": 188, "frameMax": 189 },
+        "maxLayback": { "frame": 204, "frameMin": 203, "frameMax": 205 },
+        "release": { "frame": 207 }
+      },
+      "metrics": {
+        "hipShoulderSepAtFFS": { "value": 6, "tolerance": 10, "units": "deg" },
+        "frontKneeAtFFS": { "value": 105, "min": 100, "max": 110, "tolerance": 10, "units": "deg" },
+        "armHeightAtFFS": { "value": 45, "tolerance": 10, "units": "deg" },
+        "elbowBendAtFFS": { "value": 90, "tolerance": 10, "units": "deg" },
+        "maxLayback": { "value": 145, "tolerance": 10, "units": "deg" }
+      },
+      "appBaseline": {
+        "note": "What the live app read on this clip before the fix (verified)",
+        "phases": { "footStrike": 193, "mer": 194, "release": 195 },
+        "metrics": {
+          "hipShoulderSep": 6,
+          "frontKneeAtFFS": 180,
+          "armHeightAtLayback": 31,
+          "elbowBendAtLayback": 0,
+          "trunkTiltAtRelease": 0,
+          "frontLegAtRelease": 180
+        }
+      }
+    }
+  }
+}
