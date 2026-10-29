@@ -1,13 +1,19 @@
 /**
- * PitchingCoachAI — Biomechanical Metrics Calculator
+ * PitchingCoachAI, Biomechanical Metrics Calculator
  *
- * Calculates all measurable metrics at each of the 4 key phases.
- * All angles in degrees. All distances normalized (0-1 scale or as ratio of height).
+ * Calculates all measurable metrics at each detected phase.
+ * All angles in degrees. All distances normalized (0-1 or height ratio).
  *
- * Research references:
- * - ASMI (Fleisig et al.) normative pitching biomechanics data
- * - Driveline Baseball pitch design / mechanics research
- * - Ben Brewster / Tread Athletics methodology
+ * MEASUREMENT CONTRACT (coach measurement model rebuild):
+ *   - A keypoint below the visibility threshold is NULL, never a fabricated
+ *     fallback coordinate. A metric that needs a null keypoint is NULL
+ *     ("not measured") and is excluded from grading.
+ *   - No correction / fudge factors anywhere. What we measure is what we
+ *     report.
+ *   - Hip-shoulder separation comes from MediaPipe WORLD landmarks in the
+ *     transverse plane. Without world landmarks it is not measured.
+ *   - Max layback uses the coach definition: forearm vs ground, 90 =
+ *     vertical, 180 = laid flat back; peak over (FFS, release].
  */
 
 import {
@@ -23,58 +29,134 @@ import {
   type Point2D,
   getSideKeys,
 } from "./types";
+import { laybackAngle, resolveThrowDirection } from "./phase-detector";
 
 // ============================================================
-// GEOMETRY HELPERS
+// GEOMETRY HELPERS (all null-tolerant)
 // ============================================================
 
-/** Angle at vertex B formed by points A-B-C, in degrees */
-function angle3(a: Point2D, b: Point2D, c: Point2D): number {
+const VIS = 0.3;
+
+/** Safe getter: null when the keypoint is missing or below visibility. */
+function kp(frame: ValidFrame | undefined, key: string): Point2D | null {
+  if (!frame) return null;
+  const p = frame.keypoints[key];
+  if (!p || p.visibility < VIS) return null;
+  return { x: p.x, y: p.y };
+}
+
+/** Visibility of a keypoint (0 when missing). */
+function vis(frame: ValidFrame | undefined, key: string): number {
+  if (!frame) return 0;
+  return frame.keypoints[key]?.visibility ?? 0;
+}
+
+/** Angle at vertex B formed by points A-B-C, degrees. Null-tolerant. */
+function angle3(a: Point2D | null, b: Point2D | null, c: Point2D | null): number | null {
+  if (!a || !b || !c) return null;
   const ba = { x: a.x - b.x, y: a.y - b.y };
   const bc = { x: c.x - b.x, y: c.y - b.y };
   const dot = ba.x * bc.x + ba.y * bc.y;
   const magBA = Math.sqrt(ba.x ** 2 + ba.y ** 2);
   const magBC = Math.sqrt(bc.x ** 2 + bc.y ** 2);
-  if (magBA === 0 || magBC === 0) return 0;
+  if (magBA === 0 || magBC === 0) return null;
   const cos = Math.max(-1, Math.min(1, dot / (magBA * magBC)));
   return (Math.acos(cos) * 180) / Math.PI;
 }
 
-/** Angle of line from A to B relative to positive X axis, in degrees */
-function vecAngle(a: Point2D, b: Point2D): number {
+/** Angle of line A→B vs positive X axis, degrees. Null-tolerant. */
+function vecAngle(a: Point2D | null, b: Point2D | null): number | null {
+  if (!a || !b) return null;
   return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
 }
 
-/** Midpoint of two points */
-function mid(a: Point2D, b: Point2D): Point2D {
+function mid(a: Point2D | null, b: Point2D | null): Point2D | null {
+  if (!a || !b) return null;
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-/** Euclidean distance */
-function dist(a: Point2D, b: Point2D): number {
+function dist(a: Point2D | null, b: Point2D | null): number | null {
+  if (!a || !b) return null;
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-/** Safe getter — returns fallback if keypoint missing or low visibility */
-function kp(frame: ValidFrame, key: string, fallback?: Point2D): Point2D {
-  const p = frame.keypoints[key];
-  if (p && p.visibility > 0.3) return { x: p.x, y: p.y };
-  return fallback || { x: 0.5, y: 0.5 };
+function round2(v: number | null): number | null {
+  return v === null ? null : Math.round(v * 100) / 100;
 }
 
-/** Estimate pitcher height from frame (shoulder-to-ankle distance * ~1.3) */
-function estimateHeight(frame: ValidFrame): number {
-  const lShoulder = frame.keypoints.leftShoulder;
-  const rShoulder = frame.keypoints.rightShoulder;
-  const lAnkle = frame.keypoints.leftAnkle;
-  const rAnkle = frame.keypoints.rightAnkle;
-  if (!lShoulder || !rShoulder || !lAnkle || !rAnkle) return 0.5;
+function roundInt(v: number | null): number | null {
+  return v === null ? null : Math.round(v);
+}
 
-  const shoulderMid = mid(lShoulder, rShoulder);
-  const ankleMid = mid(lAnkle, rAnkle);
+/** Trunk deviation from vertical (0 = stacked). Null-tolerant. */
+function trunkFromVertical(frame: ValidFrame | undefined): number | null {
+  const hipMid = mid(kp(frame, "leftHip"), kp(frame, "rightHip"));
+  const shoulderMid = mid(kp(frame, "leftShoulder"), kp(frame, "rightShoulder"));
+  const a = vecAngle(hipMid, shoulderMid);
+  if (a === null) return null;
+  return Math.abs(-90 - a);
+}
+
+/** Pitcher height estimate in normalized units; null when unmeasurable. */
+function estimateHeight(frame: ValidFrame | undefined): number | null {
+  const shoulderMid = mid(kp(frame, "leftShoulder"), kp(frame, "rightShoulder"));
+  const ankleMid = mid(kp(frame, "leftAnkle"), kp(frame, "rightAnkle"));
   const torsoToFeet = dist(shoulderMid, ankleMid);
-  // Head is roughly 20% additional height above shoulders
+  if (torsoToFeet === null || torsoToFeet < 1e-4) return null;
   return torsoToFeet * 1.25;
+}
+
+// ============================================================
+// CONFIDENCE TRACKING
+// ============================================================
+
+type ConfidenceMap = Record<string, number>;
+
+/** Min visibility across the keypoints a metric used (0 when unmeasured). */
+function conf(frame: ValidFrame | undefined, keys: string[]): number {
+  if (!frame) return 0;
+  let m = 1;
+  for (const k of keys) m = Math.min(m, vis(frame, k));
+  return Math.round(m * 100) / 100;
+}
+
+// ============================================================
+// WORLD-LANDMARK HIP-SHOULDER SEPARATION
+// ============================================================
+
+/**
+ * Separation in the transverse (overhead) plane from world landmarks:
+ * angle between the pelvis line and the shoulder line, folded to 0-90.
+ * Windowed median over frame±2 to reject single-frame depth noise.
+ */
+function worldHipShoulderSep(
+  frames: ValidFrame[],
+  centerIdx: number
+): { value: number | null; confidence: number } {
+  const samples: number[] = [];
+  let minVis = 1;
+  for (let i = Math.max(0, centerIdx - 2); i <= Math.min(frames.length - 1, centerIdx + 2); i++) {
+    const w = frames[i]?.worldKeypoints;
+    if (!w) continue;
+    const lh = w.leftHip;
+    const rh = w.rightHip;
+    const ls = w.leftShoulder;
+    const rs = w.rightShoulder;
+    if (!lh || !rh || !ls || !rs) continue;
+    const v = Math.min(lh.visibility, rh.visibility, ls.visibility, rs.visibility);
+    if (v < VIS) continue;
+    const hipAng = (Math.atan2(rh.z - lh.z, rh.x - lh.x) * 180) / Math.PI;
+    const shAng = (Math.atan2(rs.z - ls.z, rs.x - ls.x) * 180) / Math.PI;
+    let sep = Math.abs(shAng - hipAng);
+    if (sep > 180) sep = 360 - sep;
+    if (sep > 90) sep = 180 - sep;
+    samples.push(sep);
+    minVis = Math.min(minVis, v);
+  }
+  if (samples.length < 2) return { value: null, confidence: 0 };
+  samples.sort((a, b) => a - b);
+  const median = samples[Math.floor(samples.length / 2)];
+  return { value: Math.round(median), confidence: Math.round(minVis * 100) / 100 };
 }
 
 // ============================================================
@@ -84,21 +166,18 @@ function estimateHeight(frame: ValidFrame): number {
 function calcLegLiftMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  S: ReturnType<typeof getSideKeys>
+  S: ReturnType<typeof getSideKeys>,
+  C: ConfidenceMap
 ): LegLiftMetrics {
   const f = frames[phases.legLift.frameIndex];
-  if (!f) return { leadKneeHeight: null, balancePoint: null };
-
-  // Lead knee height: how high knee gets relative to hip (positive = above hip)
   const leadHipPt = kp(f, S.leadHip);
   const leadKneePt = kp(f, S.leadKnee);
-  const leadKneeHeight = Math.round((leadHipPt.y - leadKneePt.y) * 100) / 100;
+  const leadKneeHeight =
+    leadHipPt && leadKneePt ? round2(leadHipPt.y - leadKneePt.y) : null;
+  C["legLift.leadKneeHeight"] = conf(f, [S.leadHip, S.leadKnee]);
 
-  // Balance point: trunk angle from vertical (0 = perfectly balanced)
-  const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-  const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-  const trunkVecAngle = vecAngle(hipMid, shoulderMid);
-  const balancePoint = Math.round(Math.abs(-90 - trunkVecAngle));
+  const balancePoint = roundInt(trunkFromVertical(f));
+  C["legLift.balancePoint"] = conf(f, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"]);
 
   return { leadKneeHeight, balancePoint };
 }
@@ -110,103 +189,77 @@ function calcLegLiftMetrics(
 function calcDriftMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  S: ReturnType<typeof getSideKeys>
+  S: ReturnType<typeof getSideKeys>,
+  C: ConfidenceMap
 ): DriftMetrics {
-  const f = frames[phases.drift.frameIndex];
-  if (!f) return { hipLeadDistance: null, backLegDriveAngle: null, backLegTensionHold: null, leadKneeHeight: null, centerOfMassVelocity: null, armPosition: null };
-
+  const dIdx = phases.drift.frameIndex;
+  const f = frames[dIdx];
   const height = estimateHeight(f);
 
-  // Hip lead distance: hip midpoint X - back ankle X, normalized by height
   const hipMid = mid(kp(f, S.leadHip), kp(f, S.backHip));
   const backAnkle = kp(f, S.backAnkle);
-  const hipLeadRaw = Math.abs(hipMid.x - backAnkle.x);
-  const hipLeadDistance = height > 0 ? Math.round((hipLeadRaw / height) * 100) / 100 : null;
+  const hipLeadDistance =
+    hipMid && backAnkle && height
+      ? round2(Math.abs(hipMid.x - backAnkle.x) / height)
+      : null;
+  C["drift.hipLeadDistance"] = conf(f, [S.leadHip, S.backHip, S.backAnkle]);
 
-  // Back leg drive angle: angle at back knee (hip-knee-ankle)
-  const backLegDriveAngle = Math.round(angle3(
-    kp(f, S.backHip),
-    kp(f, S.backKnee),
-    kp(f, S.backAnkle)
-  ));
+  const backLegDriveAngle = roundInt(
+    angle3(kp(f, S.backHip), kp(f, S.backKnee), kp(f, S.backAnkle))
+  );
+  C["drift.backLegDriveAngle"] = conf(f, [S.backHip, S.backKnee, S.backAnkle]);
 
-  // Lead knee height relative to hip (positive = knee above hip)
   const leadHipPt = kp(f, S.leadHip);
   const leadKneePt = kp(f, S.leadKnee);
-  const leadKneeHeight = Math.round((leadHipPt.y - leadKneePt.y) * 100) / 100;
+  const leadKneeHeight =
+    leadHipPt && leadKneePt ? round2(leadHipPt.y - leadKneePt.y) : null;
+  C["drift.leadKneeHeight"] = conf(f, [S.leadHip, S.leadKnee]);
 
-  // Center of mass velocity (hip midpoint frame-to-frame delta)
   let centerOfMassVelocity: number | null = null;
-  const dIdx = phases.drift.frameIndex;
-  if (dIdx > 0 && dIdx < frames.length) {
-    const prevHipMid = mid(
-      kp(frames[dIdx - 1], S.leadHip),
-      kp(frames[dIdx - 1], S.backHip)
-    );
-    const currHipMid = hipMid;
-    centerOfMassVelocity = Math.round(Math.abs(currHipMid.x - prevHipMid.x) * 1000) / 1000;
+  if (dIdx > 0) {
+    const prevHipMid = mid(kp(frames[dIdx - 1], S.leadHip), kp(frames[dIdx - 1], S.backHip));
+    if (prevHipMid && hipMid) {
+      centerOfMassVelocity = Math.round(Math.abs(hipMid.x - prevHipMid.x) * 1000) / 1000;
+    }
   }
+  C["drift.centerOfMassVelocity"] = conf(f, [S.leadHip, S.backHip]);
 
-  // Arm position: throwing wrist Y relative to shoulder Y
-  // Lower value = arm more relaxed/down (preferred during drift)
   const throwWrist = kp(f, S.throwWrist);
   const throwShoulder = kp(f, S.throwShoulder);
-  const armPosition = Math.round((throwShoulder.y - throwWrist.y) * 100) / 100;
+  const armPosition =
+    throwWrist && throwShoulder ? round2(throwShoulder.y - throwWrist.y) : null;
+  C["drift.armPosition"] = conf(f, [S.throwWrist, S.throwShoulder]);
 
-  // Back leg tension hold: track back knee angle from drift through foot strike.
-  // A pitcher who HOLDS tension keeps the back knee angle relatively stable (bent ~130-150°)
-  // through the stride, then it opens up at/near foot strike.
-  // A pitcher who PUSHES OFF extends the back leg early — the knee angle jumps to 160°+
-  // well before foot strike. We score 0-100: 100 = perfect hold, 0 = full early push-off.
+  // Back leg tension hold: knee-angle stability drift → foot strike
   let backLegTensionHold: number | null = null;
-  const driftIdx = phases.drift.frameIndex;
   const fsIdx = phases.footStrike.frameIndex;
-
-  if (fsIdx > driftIdx + 2) {
-    const totalFrames = fsIdx - driftIdx;
-    const backKneeAngles: number[] = [];
-
-    for (let i = driftIdx; i <= fsIdx && i < frames.length; i++) {
-      const fr = frames[i];
-      if (!fr) continue;
-      const kneeAngle = angle3(kp(fr, S.backHip), kp(fr, S.backKnee), kp(fr, S.backAnkle));
-      backKneeAngles.push(kneeAngle);
+  if (fsIdx > dIdx + 2) {
+    const kneeAngles: number[] = [];
+    for (let i = dIdx; i <= fsIdx && i < frames.length; i++) {
+      const a = angle3(kp(frames[i], S.backHip), kp(frames[i], S.backKnee), kp(frames[i], S.backAnkle));
+      if (a !== null) kneeAngles.push(a);
     }
-
-    if (backKneeAngles.length >= 3) {
-      const startAngle = backKneeAngles[0];
-      // Find at what % through the stride the back leg crosses 160° (near full extension)
-      // If it extends early (first 40%), that's pushing off. If late (last 30%), that's holding tension.
-      let extensionPoint = 1.0; // default: never fully extends (great)
-      for (let i = 0; i < backKneeAngles.length; i++) {
-        if (backKneeAngles[i] > 160 && startAngle < 160) {
-          extensionPoint = i / backKneeAngles.length;
+    if (kneeAngles.length >= 3) {
+      const startAngle = kneeAngles[0];
+      let extensionPoint = 1.0;
+      for (let i = 0; i < kneeAngles.length; i++) {
+        if (kneeAngles[i] > 160 && startAngle < 160) {
+          extensionPoint = i / kneeAngles.length;
           break;
         }
       }
-
-      // Also measure how much the angle changes in the first half vs second half.
-      // Good mechanics: minimal change in first half, rapid extension in second half.
-      const midPoint = Math.floor(backKneeAngles.length / 2);
-      const firstHalfDelta = backKneeAngles[midPoint] - backKneeAngles[0];
-      const secondHalfDelta = backKneeAngles[backKneeAngles.length - 1] - backKneeAngles[midPoint];
-      const totalDelta = backKneeAngles[backKneeAngles.length - 1] - backKneeAngles[0];
-
-      // Score: extensionPoint contributes 60%, distribution contributes 40%
-      // extensionPoint: 1.0 = never extends (100 pts), 0.3 = extends at 30% (0 pts)
+      const midPoint = Math.floor(kneeAngles.length / 2);
+      const secondHalfDelta = kneeAngles[kneeAngles.length - 1] - kneeAngles[midPoint];
+      const totalDelta = kneeAngles[kneeAngles.length - 1] - kneeAngles[0];
       const extensionScore = Math.max(0, Math.min(100, ((extensionPoint - 0.3) / 0.7) * 100));
-
-      // distribution: if totalDelta > 0, ratio of second-half change to total change
-      // Good: most extension happens in second half (ratio > 0.7)
-      let distributionScore = 50; // neutral if no extension
+      let distributionScore = 50;
       if (totalDelta > 5) {
-        const lateRatio = Math.max(0, secondHalfDelta) / totalDelta;
-        distributionScore = Math.max(0, Math.min(100, lateRatio * 100));
+        distributionScore = Math.max(0, Math.min(100, (Math.max(0, secondHalfDelta) / totalDelta) * 100));
       }
-
       backLegTensionHold = Math.round(extensionScore * 0.6 + distributionScore * 0.4);
     }
   }
+  C["drift.backLegTensionHold"] = conf(f, [S.backHip, S.backKnee, S.backAnkle]);
 
   return { hipLeadDistance, backLegDriveAngle, backLegTensionHold, leadKneeHeight, centerOfMassVelocity, armPosition };
 }
@@ -218,201 +271,173 @@ function calcDriftMetrics(
 function calcFootStrikeMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  S: ReturnType<typeof getSideKeys>
+  S: ReturnType<typeof getSideKeys>,
+  C: ConfidenceMap
 ): FootStrikeMetrics {
-  const f = frames[phases.footStrike.frameIndex];
-  if (!f) return { strideLength: null, hipShoulderSep: null, leadKneeAngle: null, armCocked: null, elbowAngleAtFS: null, forearmVerticalAngle: null, trunkAngle: null, glovePosition: null, shoulderAbductionAtFS: null, shoulderERAtFS: null };
-
+  const fsIdx = phases.footStrike.frameIndex;
+  const f = frames[fsIdx];
   const height = estimateHeight(f);
 
-  // Stride length: lead ankle to back ankle X distance / height
+  // Stride length (side view, image plane)
   const leadAnkle = kp(f, S.leadAnkle);
   const backAnkle = kp(f, S.backAnkle);
-  const strideLenRaw = Math.abs(leadAnkle.x - backAnkle.x);
-  const strideLength = height > 0 ? Math.round((strideLenRaw / height) * 100) / 100 : null;
+  const strideLength =
+    leadAnkle && backAnkle && height
+      ? round2(Math.abs(leadAnkle.x - backAnkle.x) / height)
+      : null;
+  C["footStrike.strideLength"] = conf(f, [S.leadAnkle, S.backAnkle, "leftShoulder", "rightShoulder"]);
 
-  // Hip-shoulder separation: angle between hip line and shoulder line
-  // This is the key velocity generator (ASMI/Fleisig)
-  const hipAngle = vecAngle(
-    kp(f, "leftHip"),
-    kp(f, "rightHip")
+  // Hip-shoulder separation: WORLD landmarks only (transverse plane).
+  // The old 2D hip-line vs shoulder-line read is meaningless in a side
+  // view (the points nearly overlap), so without world data: not measured.
+  const sepResult = worldHipShoulderSep(frames, fsIdx);
+  const hipShoulderSep = sepResult.value;
+  C["footStrike.hipShoulderSep"] = sepResult.confidence;
+
+  // Front knee at FFS (hip-knee-ankle; 180 = straight)
+  const leadKneeAngle = roundInt(
+    angle3(kp(f, S.leadHip), kp(f, S.leadKnee), kp(f, S.leadAnkle))
   );
-  const shoulderAngle = vecAngle(
-    kp(f, "leftShoulder"),
-    kp(f, "rightShoulder")
-  );
-  let hipShoulderSep = Math.round(Math.abs(hipAngle - shoulderAngle));
-  if (hipShoulderSep > 90) hipShoulderSep = 180 - hipShoulderSep;
+  C["footStrike.leadKneeAngle"] = conf(f, [S.leadHip, S.leadKnee, S.leadAnkle]);
 
-  // Lead knee angle at foot strike (hip-knee-ankle)
-  const leadKneeAngle = Math.round(angle3(
-    kp(f, S.leadHip),
-    kp(f, S.leadKnee),
-    kp(f, S.leadAnkle)
-  ));
-
-  // Arm cocked: is throwing elbow at or above shoulder height?
+  // Arm cocked: throwing elbow at/above shoulder height
   const throwElbow = kp(f, S.throwElbow);
   const throwShoulder = kp(f, S.throwShoulder);
-  const armCocked = throwElbow.y <= throwShoulder.y + 0.02; // elbow at or above shoulder
+  const armCocked =
+    throwElbow && throwShoulder ? throwElbow.y <= throwShoulder.y + 0.02 : null;
 
-  // Elbow flexion angle at foot strike
-  const elbowAngleAtFS = Math.round(angle3(
-    kp(f, S.throwShoulder),
-    kp(f, S.throwElbow),
-    kp(f, S.throwWrist)
-  ));
+  // Elbow bend at FFS (shoulder-elbow-wrist)
+  const elbowAngleAtFS = roundInt(
+    angle3(kp(f, S.throwShoulder), kp(f, S.throwElbow), kp(f, S.throwWrist))
+  );
+  C["footStrike.elbowAngleAtFS"] = conf(f, [S.throwShoulder, S.throwElbow, S.throwWrist]);
 
-  // Forearm-to-vertical angle (arm timing)
-  // 0° = forearm pointing straight up (ideal cocked position at FFS)
-  // >20° = "late arm" — hasn't reached cocked position, injury risk
+  // Forearm-to-vertical (arm timing)
   const forearmVec = vecAngle(kp(f, S.throwElbow), kp(f, S.throwWrist));
-  const forearmVerticalAngle = Math.round(Math.abs(-90 - forearmVec));
+  const forearmVerticalAngle = forearmVec === null ? null : Math.round(Math.abs(-90 - forearmVec));
+  C["footStrike.forearmVerticalAngle"] = conf(f, [S.throwElbow, S.throwWrist]);
 
   // Trunk angle from vertical
-  const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-  const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-  const trunkAngleRaw = vecAngle(hipMid, shoulderMid);
-  // Trunk is vertical when angle is -90° (pointing straight up)
-  // Deviation from -90° = forward/backward lean
-  const trunkAngle = Math.round(Math.abs(-90 - trunkAngleRaw));
+  const trunkAngle = roundInt(trunkFromVertical(f));
+  C["footStrike.trunkAngle"] = conf(f, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"]);
 
-  // Glove position: glove wrist X relative to lead shoulder X
-  // Positive = glove in front of chest (good)
+  // Glove position
   const gloveWrist = kp(f, S.gloveWrist);
   const gloveShoulder = kp(f, S.gloveShoulder);
-  const glovePosition = Math.round((gloveShoulder.x - gloveWrist.x) * 100) / 100;
+  const glovePosition =
+    gloveWrist && gloveShoulder ? round2(gloveShoulder.x - gloveWrist.x) : null;
+  C["footStrike.glovePosition"] = conf(f, [S.gloveWrist, S.gloveShoulder]);
 
-  // Shoulder abduction at SFC: angle of upper arm relative to torso midline
+  // Arm height at FFS (shoulder abduction): trunk line vs upper arm.
+  // 90 = elbow level with the shoulder. Coach-defined target metric.
   const hipMidFS = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-  const shoulderAbductionAtFS = Math.round(angle3(hipMidFS, throwShoulder, throwElbow));
+  const shoulderAbductionAtFS = roundInt(angle3(hipMidFS, throwShoulder, throwElbow));
+  C["footStrike.shoulderAbductionAtFS"] = conf(f, ["leftHip", "rightHip", S.throwShoulder, S.throwElbow]);
 
-  // Shoulder external rotation at SFC: forearm angle relative to upper arm
-  // At SFC, the forearm should be relatively vertical (cocked position)
-  // ER estimate: angle between upper arm vector and forearm vector in 2D
-  const throwWrist = kp(f, S.throwWrist);
-  const forearmAngleFS = vecAngle(throwElbow, throwWrist);
-  const upperArmAngleFS = vecAngle(throwShoulder, throwElbow);
-  let shoulderERAtFS = Math.round(Math.abs(forearmAngleFS - upperArmAngleFS));
-  if (shoulderERAtFS > 180) shoulderERAtFS = 360 - shoulderERAtFS;
-  // 2D correction (same as MER calculation)
-  shoulderERAtFS = Math.min(180, shoulderERAtFS + 30);
+  // DEPRECATED: fudged 2D external-rotation proxy. Kept as null so stored
+  // rows keep their shape; never computed, never graded.
+  const shoulderERAtFS = null;
 
   return { strideLength, hipShoulderSep, leadKneeAngle, armCocked, elbowAngleAtFS, forearmVerticalAngle, trunkAngle, glovePosition, shoulderAbductionAtFS, shoulderERAtFS };
 }
 
 // ============================================================
-// MER METRICS
+// MAX LAYBACK METRICS (phase key "mer" kept for compatibility)
 // ============================================================
 
 function calcMERMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  S: ReturnType<typeof getSideKeys>
+  S: ReturnType<typeof getSideKeys>,
+  throwDirSign: number,
+  C: ConfidenceMap
 ): MERMetrics {
-  const f = frames[phases.mer.frameIndex];
-  if (!f) return { shoulderExternalRotation: null, elbowHeight: null, elbowFlexion: null, trunkLateralTilt: null, leadLegBrace: null, shoulderAbduction: null, leadLegBraceDelta: null, trunkRotationSequencing: null };
+  const merIdx = phases.mer.frameIndex;
+  const fsIdx = phases.footStrike.frameIndex;
+  const relIdx = phases.release.frameIndex;
+  const f = frames[merIdx];
 
-  // Shoulder External Rotation (forearm layback)
-  // Measured as angle between upper arm vector and forearm vector
-  // At MER, this should be 170-185° for elite pitchers
+  // Coach-defined max layback, read at the detected max-layback frame
+  // (the detector picks it as the smoothed peak over (FFS, release]).
+  // Falls back to the raw window peak if that exact frame is unreadable.
+  let maxLayback: number | null = laybackAngle(f, S.throwElbow, S.throwWrist, throwDirSign);
+  if (maxLayback === null) {
+    for (let i = fsIdx + 1; i <= relIdx && i < frames.length; i++) {
+      const lb = laybackAngle(frames[i], S.throwElbow, S.throwWrist, throwDirSign);
+      if (lb === null) continue;
+      if (maxLayback === null || lb > maxLayback) maxLayback = lb;
+    }
+  }
+  maxLayback = roundInt(maxLayback);
+  C["mer.maxLayback"] = conf(f, [S.throwElbow, S.throwWrist]);
+
+  // DEPRECATED fudged proxy: never computed, never graded.
+  const shoulderExternalRotation = null;
+
   const shoulder = kp(f, S.throwShoulder);
   const elbow = kp(f, S.throwElbow);
   const wrist = kp(f, S.throwWrist);
 
-  // External rotation = 180° - angle at elbow (shoulder-elbow-wrist)
-  // When forearm is laid back, this approaches 180°
-  // Actually, shoulder ER is the angle of forearm rotation relative to
-  // the shoulder plane. In 2D side view, we approximate this as:
-  const forearmAngle = vecAngle(elbow, wrist);
-  const upperArmAngle = vecAngle(shoulder, elbow);
-  let shoulderExternalRotation = Math.round(Math.abs(forearmAngle - upperArmAngle));
-  // Normalize to 0-180 range
-  if (shoulderExternalRotation > 180) shoulderExternalRotation = 360 - shoulderExternalRotation;
-  // Add base to approximate full ER (2D underestimates true 3D ER)
-  // Typical 2D measurement reads ~100-140°, actual 3D is ~170-185°
-  // We add a correction factor
-  shoulderExternalRotation = Math.min(190, shoulderExternalRotation + 50);
-
-  // Elbow height relative to shoulder line (degrees)
   const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-  const elbowHeightRatio = (shoulderMid.y - elbow.y); // positive = above shoulder
-  const elbowHeight = Math.round(elbowHeightRatio * 180); // approximate degrees
+  const elbowHeight =
+    shoulderMid && elbow ? Math.round((shoulderMid.y - elbow.y) * 180) : null;
+  C["mer.elbowHeight"] = conf(f, ["leftShoulder", "rightShoulder", S.throwElbow]);
 
-  // Elbow flexion (shoulder-elbow-wrist angle)
-  const elbowFlexion = Math.round(angle3(shoulder, elbow, wrist));
+  const elbowFlexion = roundInt(angle3(shoulder, elbow, wrist));
+  C["mer.elbowFlexion"] = conf(f, [S.throwShoulder, S.throwElbow, S.throwWrist]);
 
-  // Trunk lateral tilt (side view: trunk midline angle from vertical)
+  const trunkLateralTilt = roundInt(trunkFromVertical(f));
+  C["mer.trunkLateralTilt"] = conf(f, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"]);
+
+  const leadLegBrace = roundInt(
+    angle3(kp(f, S.leadHip), kp(f, S.leadKnee), kp(f, S.leadAnkle))
+  );
+  C["mer.leadLegBrace"] = conf(f, [S.leadHip, S.leadKnee, S.leadAnkle]);
+
   const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-  const trunkVecAngle = vecAngle(hipMid, shoulderMid);
-  const trunkLateralTilt = Math.round(Math.abs(-90 - trunkVecAngle));
+  const shoulderAbduction = roundInt(angle3(hipMid, shoulder, elbow));
+  C["mer.shoulderAbduction"] = conf(f, ["leftHip", "rightHip", S.throwShoulder, S.throwElbow]);
 
-  // Lead leg brace (knee extension angle at lead leg)
-  const leadLegBrace = Math.round(angle3(
-    kp(f, S.leadHip),
-    kp(f, S.leadKnee),
-    kp(f, S.leadAnkle)
-  ));
-
-  // Shoulder abduction (upper arm angle relative to torso)
-  const shoulderAbduction = Math.round(angle3(hipMid, shoulder, elbow));
-
-  // Lead leg brace delta: knee extension change from SFC to MER
-  // Positive value = leg is straightening (bracing), negative = collapsing
+  // Brace progression from FFS (delta form: correlated error cancels)
   let leadLegBraceDelta: number | null = null;
-  const fsFrame = frames[phases.footStrike.frameIndex];
-  if (fsFrame) {
-    const fsKneeAngle = Math.round(angle3(
-      kp(fsFrame, S.leadHip),
-      kp(fsFrame, S.leadKnee),
-      kp(fsFrame, S.leadAnkle)
-    ));
-    leadLegBraceDelta = leadLegBrace - fsKneeAngle;
+  const fsFrame = frames[fsIdx];
+  const fsKnee = angle3(kp(fsFrame, S.leadHip), kp(fsFrame, S.leadKnee), kp(fsFrame, S.leadAnkle));
+  if (fsKnee !== null && leadLegBrace !== null) {
+    leadLegBraceDelta = Math.round(leadLegBrace - fsKnee);
   }
+  C["mer.leadLegBraceDelta"] = Math.min(
+    conf(f, [S.leadHip, S.leadKnee, S.leadAnkle]),
+    conf(fsFrame, [S.leadHip, S.leadKnee, S.leadAnkle])
+  );
 
-  // Trunk rotation sequencing: measure the timing lag between hip and shoulder rotation
-  // We look at frames from SFC to MER and find when hips vs shoulders reach peak rotation velocity
+  // Rotation sequencing: EXPERIMENTAL, computed but never graded (a 2D
+  // side view cannot measure rotation timing reliably).
   let trunkRotationSequencing: number | null = null;
-  const fsIdx = phases.footStrike.frameIndex;
-  const merIdx = phases.mer.frameIndex;
-
   if (merIdx > fsIdx + 3) {
-    // Measure hip line angle and shoulder line angle at each frame
     let hipPeakVelIdx = fsIdx;
     let shoulderPeakVelIdx = fsIdx;
     let hipPeakVel = 0;
     let shoulderPeakVel = 0;
-
     for (let i = fsIdx + 1; i <= merIdx && i < frames.length; i++) {
-      const prevF = frames[i - 1];
-      const currF = frames[i];
-      if (!prevF || !currF) continue;
-
-      // Hip rotation velocity (change in hip line angle)
-      const prevHipAngle = vecAngle(kp(prevF, "leftHip"), kp(prevF, "rightHip"));
-      const currHipAngle = vecAngle(kp(currF, "leftHip"), kp(currF, "rightHip"));
-      const hipVel = Math.abs(currHipAngle - prevHipAngle);
-
-      // Shoulder rotation velocity
-      const prevShoulderAngle = vecAngle(kp(prevF, "leftShoulder"), kp(prevF, "rightShoulder"));
-      const currShoulderAngle = vecAngle(kp(currF, "leftShoulder"), kp(currF, "rightShoulder"));
-      const shoulderVel = Math.abs(currShoulderAngle - prevShoulderAngle);
-
-      if (hipVel > hipPeakVel) {
-        hipPeakVel = hipVel;
-        hipPeakVelIdx = i;
+      const prevHip = vecAngle(kp(frames[i - 1], "leftHip"), kp(frames[i - 1], "rightHip"));
+      const currHip = vecAngle(kp(frames[i], "leftHip"), kp(frames[i], "rightHip"));
+      const prevSh = vecAngle(kp(frames[i - 1], "leftShoulder"), kp(frames[i - 1], "rightShoulder"));
+      const currSh = vecAngle(kp(frames[i], "leftShoulder"), kp(frames[i], "rightShoulder"));
+      if (prevHip !== null && currHip !== null) {
+        const v = Math.abs(currHip - prevHip);
+        if (v > hipPeakVel) { hipPeakVel = v; hipPeakVelIdx = i; }
       }
-      if (shoulderVel > shoulderPeakVel) {
-        shoulderPeakVel = shoulderVel;
-        shoulderPeakVelIdx = i;
+      if (prevSh !== null && currSh !== null) {
+        const v = Math.abs(currSh - prevSh);
+        if (v > shoulderPeakVel) { shoulderPeakVel = v; shoulderPeakVelIdx = i; }
       }
     }
-
-    // Sequencing = shoulder peak comes AFTER hip peak (positive = good sequential timing)
-    trunkRotationSequencing = shoulderPeakVelIdx - hipPeakVelIdx;
+    if (hipPeakVel > 0 && shoulderPeakVel > 0) {
+      trunkRotationSequencing = shoulderPeakVelIdx - hipPeakVelIdx;
+    }
   }
 
-  return { shoulderExternalRotation, elbowHeight, elbowFlexion, trunkLateralTilt, leadLegBrace, shoulderAbduction, leadLegBraceDelta, trunkRotationSequencing };
+  return { maxLayback, shoulderExternalRotation, elbowHeight, elbowFlexion, trunkLateralTilt, leadLegBrace, shoulderAbduction, leadLegBraceDelta, trunkRotationSequencing };
 }
 
 // ============================================================
@@ -423,68 +448,56 @@ function calcReleaseMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   S: ReturnType<typeof getSideKeys>,
-  throwingHand: "left" | "right"
+  C: ConfidenceMap
 ): ReleaseMetrics {
   const f = frames[phases.release.frameIndex];
   const fsFrame = frames[phases.footStrike.frameIndex];
-  if (!f) return { trunkForwardFlexion: null, leadLegExtension: null, releasePointHeight: null, extension: null, armSlot: null, trunkRotation: null, leadLegBraceTotal: null };
 
-  // Trunk forward flexion (trunk angle from vertical at release)
-  const hipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-  const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-  const trunkVecAngle = vecAngle(hipMid, shoulderMid);
-  const trunkForwardFlexion = Math.round(Math.abs(-90 - trunkVecAngle));
+  const trunkForwardFlexion = roundInt(trunkFromVertical(f));
+  C["release.trunkForwardFlexion"] = conf(f, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"]);
 
-  // Lead leg extension (hip-knee-ankle angle — near full extension = 160-180°)
-  const leadLegExtension = Math.round(angle3(
-    kp(f, S.leadHip),
-    kp(f, S.leadKnee),
-    kp(f, S.leadAnkle)
-  ));
+  const leadLegExtension = roundInt(
+    angle3(kp(f, S.leadHip), kp(f, S.leadKnee), kp(f, S.leadAnkle))
+  );
+  C["release.leadLegExtension"] = conf(f, [S.leadHip, S.leadKnee, S.leadAnkle]);
 
-  // Release point height: wrist Y relative to head Y
-  // Negative = wrist above head (good for overhand)
   const nose = kp(f, "nose");
   const wrist = kp(f, S.throwWrist);
-  const releasePointHeight = Math.round((nose.y - wrist.y) * 100) / 100;
+  const releasePointHeight = nose && wrist ? round2(nose.y - wrist.y) : null;
+  C["release.releasePointHeight"] = conf(f, ["nose", S.throwWrist]);
 
-  // Extension: wrist X distance from back ankle (how far toward plate)
   const backAnkle = kp(f, S.backAnkle);
   const height = estimateHeight(f);
-  const extensionRaw = Math.abs(wrist.x - backAnkle.x);
-  const extension = height > 0 ? Math.round((extensionRaw / height) * 100) / 100 : null;
+  const extension =
+    wrist && backAnkle && height ? round2(Math.abs(wrist.x - backAnkle.x) / height) : null;
+  C["release.extension"] = conf(f, [S.throwWrist, S.backAnkle]);
 
-  // Arm slot: angle of shoulder-to-wrist line relative to vertical
   const shoulder = kp(f, S.throwShoulder);
   const armSlotRaw = vecAngle(shoulder, wrist);
-  // Convert to angle from vertical (0° = straight overhead, 90° = sidearm)
-  const armSlot = Math.round(Math.abs(armSlotRaw + 90));
+  const armSlot = armSlotRaw === null ? null : Math.round(Math.abs(armSlotRaw + 90));
+  C["release.armSlot"] = conf(f, [S.throwShoulder, S.throwWrist]);
 
-  // Trunk rotation: change in shoulder line angle from foot strike to release
   let trunkRotation: number | null = null;
-  if (fsFrame) {
-    const fsShoulderAngle = vecAngle(
-      kp(fsFrame, "leftShoulder"),
-      kp(fsFrame, "rightShoulder")
-    );
-    const relShoulderAngle = vecAngle(
-      kp(f, "leftShoulder"),
-      kp(f, "rightShoulder")
-    );
+  const fsShoulderAngle = vecAngle(kp(fsFrame, "leftShoulder"), kp(fsFrame, "rightShoulder"));
+  const relShoulderAngle = vecAngle(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
+  if (fsShoulderAngle !== null && relShoulderAngle !== null) {
     trunkRotation = Math.round(Math.abs(relShoulderAngle - fsShoulderAngle));
     if (trunkRotation > 90) trunkRotation = 180 - trunkRotation;
   }
+  C["release.trunkRotation"] = Math.min(
+    conf(f, ["leftShoulder", "rightShoulder"]),
+    conf(fsFrame, ["leftShoulder", "rightShoulder"])
+  );
 
-  // Lead leg brace total: knee extension change from SFC to release
   let leadLegBraceTotal: number | null = null;
-  if (fsFrame) {
-    const fsKneeAngle = Math.round(angle3(
-      kp(fsFrame, S.leadHip),
-      kp(fsFrame, S.leadKnee),
-      kp(fsFrame, S.leadAnkle)
-    ));
-    leadLegBraceTotal = leadLegExtension - fsKneeAngle;
+  const fsKnee = angle3(kp(fsFrame, S.leadHip), kp(fsFrame, S.leadKnee), kp(fsFrame, S.leadAnkle));
+  if (fsKnee !== null && leadLegExtension !== null) {
+    leadLegBraceTotal = Math.round(leadLegExtension - fsKnee);
   }
+  C["release.leadLegBraceTotal"] = Math.min(
+    conf(f, [S.leadHip, S.leadKnee, S.leadAnkle]),
+    conf(fsFrame, [S.leadHip, S.leadKnee, S.leadAnkle])
+  );
 
   return { trunkForwardFlexion, leadLegExtension, releasePointHeight, extension, armSlot, trunkRotation, leadLegBraceTotal };
 }
@@ -496,91 +509,97 @@ function calcReleaseMetrics(
 function calcDecelerationMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  S: ReturnType<typeof getSideKeys>
+  S: ReturnType<typeof getSideKeys>,
+  C: ConfidenceMap
 ): DecelerationMetrics {
   const f = frames[phases.deceleration.frameIndex];
   const relFrame = frames[phases.release.frameIndex];
-  if (!f) return { followThroughLength: null, trunkFlexionDelta: null, bodyBalance: null, armDecelerationPath: null };
-
   const height = estimateHeight(f);
 
-  // Follow-through length: how far the throwing wrist travels after release
   let followThroughLength: number | null = null;
-  if (relFrame && height > 0) {
-    const relWrist = kp(relFrame, S.throwWrist);
-    const decelWrist = kp(f, S.throwWrist);
-    followThroughLength = Math.round((dist(relWrist, decelWrist) / height) * 100) / 100;
+  const relWrist = kp(relFrame, S.throwWrist);
+  const decelWrist = kp(f, S.throwWrist);
+  const ftDist = dist(relWrist, decelWrist);
+  if (ftDist !== null && height) {
+    followThroughLength = round2(ftDist / height);
   }
+  C["deceleration.followThroughLength"] = Math.min(
+    conf(f, [S.throwWrist]),
+    conf(relFrame, [S.throwWrist])
+  );
 
-  // Trunk flexion delta: additional trunk flexion from release to follow-through
   let trunkFlexionDelta: number | null = null;
-  if (relFrame) {
-    const relHipMid = mid(kp(relFrame, "leftHip"), kp(relFrame, "rightHip"));
-    const relShoulderMid = mid(kp(relFrame, "leftShoulder"), kp(relFrame, "rightShoulder"));
-    const relTrunkAngle = Math.abs(-90 - vecAngle(relHipMid, relShoulderMid));
-
-    const decelHipMid = mid(kp(f, "leftHip"), kp(f, "rightHip"));
-    const decelShoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-    const decelTrunkAngle = Math.abs(-90 - vecAngle(decelHipMid, decelShoulderMid));
-
-    trunkFlexionDelta = Math.round(decelTrunkAngle - relTrunkAngle);
+  const relTrunk = trunkFromVertical(relFrame);
+  const decelTrunk = trunkFromVertical(f);
+  if (relTrunk !== null && decelTrunk !== null) {
+    trunkFlexionDelta = Math.round(decelTrunk - relTrunk);
   }
+  C["deceleration.trunkFlexionDelta"] = Math.min(
+    conf(f, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"]),
+    conf(relFrame, ["leftHip", "rightHip", "leftShoulder", "rightShoulder"])
+  );
 
-  // Body balance: how centered is the head over the base of support at follow-through
   const nose = kp(f, "nose");
   const leadAnkle = kp(f, S.leadAnkle);
   const backAnkle = kp(f, S.backAnkle);
-  const baseMidX = (leadAnkle.x + backAnkle.x) / 2;
-  // Normalized deviation: 0 = perfectly centered, higher = more off-balance
-  const bodyBalance = height > 0
-    ? Math.round(Math.abs(nose.x - baseMidX) / height * 100)
-    : null;
+  let bodyBalance: number | null = null;
+  if (nose && leadAnkle && backAnkle && height) {
+    const baseMidX = (leadAnkle.x + backAnkle.x) / 2;
+    bodyBalance = Math.round((Math.abs(nose.x - baseMidX) / height) * 100);
+  }
+  C["deceleration.bodyBalance"] = conf(f, ["nose", S.leadAnkle, S.backAnkle]);
 
-  // Arm deceleration path smoothness: measure how smooth the wrist path is from release to follow-through
-  // Score 0-100 (100 = perfectly smooth arc, lower = jerky/abbreviated)
   let armDecelerationPath: number | null = null;
   const relIdx = phases.release.frameIndex;
   const decelIdx = phases.deceleration.frameIndex;
-
   if (decelIdx > relIdx + 2) {
-    // Measure consistency of wrist speed across post-release frames
     const speeds: number[] = [];
     for (let i = relIdx + 1; i <= decelIdx && i < frames.length; i++) {
-      if (i < 1) continue;
       const spd = dist(kp(frames[i - 1], S.throwWrist), kp(frames[i], S.throwWrist));
-      speeds.push(spd);
+      if (spd !== null) speeds.push(spd);
     }
-
     if (speeds.length >= 2) {
-      // Check for smooth deceleration (speeds should decrease monotonically)
       let smoothFrames = 0;
       for (let i = 1; i < speeds.length; i++) {
-        if (speeds[i] <= speeds[i - 1] * 1.3) smoothFrames++; // Allow 30% tolerance
+        if (speeds[i] <= speeds[i - 1] * 1.3) smoothFrames++;
       }
       armDecelerationPath = Math.round((smoothFrames / (speeds.length - 1)) * 100);
     }
   }
+  C["deceleration.armDecelerationPath"] = conf(f, [S.throwWrist]);
 
   return { followThroughLength, trunkFlexionDelta, bodyBalance, armDecelerationPath };
 }
 
 // ============================================================
-// MAIN ENTRY POINT
+// MAIN ENTRY POINTS
 // ============================================================
+
+export function calculateAllMetricsWithConfidence(
+  frames: ValidFrame[],
+  phases: DetectedPhases,
+  throwingHand: "left" | "right" = "right"
+): { metrics: AllMetrics; confidence: Record<string, number> } {
+  const S = getSideKeys(throwingHand);
+  const C: ConfidenceMap = {};
+  const throwDirSign = resolveThrowDirection(frames, throwingHand, phases.release.frameIndex);
+
+  const metrics: AllMetrics = {
+    legLift: calcLegLiftMetrics(frames, phases, S, C),
+    drift: calcDriftMetrics(frames, phases, S, C),
+    footStrike: calcFootStrikeMetrics(frames, phases, S, C),
+    mer: calcMERMetrics(frames, phases, S, throwDirSign, C),
+    release: calcReleaseMetrics(frames, phases, S, C),
+    deceleration: calcDecelerationMetrics(frames, phases, S, C),
+  };
+
+  return { metrics, confidence: C };
+}
 
 export function calculateAllMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   throwingHand: "left" | "right" = "right"
 ): AllMetrics {
-  const S = getSideKeys(throwingHand);
-
-  return {
-    legLift: calcLegLiftMetrics(frames, phases, S),
-    drift: calcDriftMetrics(frames, phases, S),
-    footStrike: calcFootStrikeMetrics(frames, phases, S),
-    mer: calcMERMetrics(frames, phases, S),
-    release: calcReleaseMetrics(frames, phases, S, throwingHand),
-    deceleration: calcDecelerationMetrics(frames, phases, S),
-  };
+  return calculateAllMetricsWithConfidence(frames, phases, throwingHand).metrics;
 }

@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — WebCodecs Frame Extractor
+ * PitchingCoachAI, WebCodecs Frame Extractor
  *
  * Uses the WebCodecs API (VideoDecoder) + MP4Box.js demuxer to decode
  * every single encoded frame from the video bitstream. This replaces
@@ -82,7 +82,7 @@ interface DemuxSample {
   timescale: number;
 }
 
-/** Timeout wrapper — rejects if the inner promise takes too long */
+/** Timeout wrapper, rejects if the inner promise takes too long */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
@@ -431,6 +431,25 @@ export async function extractFramesWebCodecs(
               }
             }
 
+            // World landmarks (meters, hip-centered 3D). Required for true
+            // hip-shoulder separation; without them it is "not measured".
+            let worldKeypoints: Keypoints | undefined;
+            const rawWorld = poseResult.worldLandmarks?.[0];
+            if (rawWorld) {
+              worldKeypoints = {};
+              for (const [idx, name] of Object.entries(LM_NAMES)) {
+                const lm = rawWorld[Number(idx)];
+                if (lm) {
+                  worldKeypoints[name] = {
+                    x: lm.x,
+                    y: lm.y,
+                    z: lm.z,
+                    visibility: lm.visibility || 0,
+                  };
+                }
+              }
+            }
+
             const visibleCount = REQUIRED_KEYPOINTS.filter(
               (k) => keypoints[k] && keypoints[k].visibility >= MIN_VISIBILITY
             ).length;
@@ -440,6 +459,7 @@ export async function extractFramesWebCodecs(
                 frameIndex: validFrames.length,
                 timestampMs: timeMs,
                 keypoints,
+                worldKeypoints,
                 phase: null,
               });
             }
