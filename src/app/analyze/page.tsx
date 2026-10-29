@@ -46,9 +46,31 @@ export default function AnalyzePage() {
   const [progressPct, setProgressPct] = useState(0);
   const [progressDetail, setProgressDetail] = useState("");
 
-  // Options
-  const [throwingHand, setThrowingHand] = useState<"left" | "right">("right");
+  // Options. No default throwing hand: the user must pick, and the choice
+  // is remembered for next time.
+  const [throwingHand, setThrowingHand] = useState<"left" | "right" | null>(null);
   const [level, setLevel] = useState<AthleteLevel>("hs");
+
+  useEffect(() => {
+    try {
+      const savedHand = localStorage.getItem("pcai_hand");
+      if (savedHand === "left" || savedHand === "right") setThrowingHand(savedHand);
+      const savedLevel = localStorage.getItem("pcai_level");
+      if (savedLevel && ["12u", "14u", "hs", "college", "pro"].includes(savedLevel)) {
+        setLevel(savedLevel as AthleteLevel);
+      }
+    } catch { /* localStorage unavailable */ }
+  }, []);
+
+  const pickHand = useCallback((hand: "left" | "right") => {
+    setThrowingHand(hand);
+    try { localStorage.setItem("pcai_hand", hand); } catch { /* ignore */ }
+  }, []);
+
+  const pickLevel = useCallback((lv: AthleteLevel) => {
+    setLevel(lv);
+    try { localStorage.setItem("pcai_level", lv); } catch { /* ignore */ }
+  }, []);
 
   // Results state
   const [activePhase, setActivePhase] = useState<PhaseName>("legLift");
@@ -66,6 +88,48 @@ export default function AnalyzePage() {
 
   const poseLandmarkerRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Everything the coach needs to review an analysis later: version,
+  // hand, level, phase frames, per-phase grades, and every metric with
+  // its value (or "not measured"), grade, and confidence.
+  const buildAnalysisPayload = useCallback((r: AnalysisResult) => {
+    const metricsFull: Record<string, {
+      value: number | null;
+      unit: string;
+      grade: string;
+      measured: boolean;
+      confidence: number;
+    }> = {};
+    for (const pg of r.grade.phaseGrades) {
+      for (const m of pg.metrics) {
+        metricsFull[m.metricKey] = {
+          value: m.value,
+          unit: m.unit,
+          grade: m.measured ? m.grade : "not_measured",
+          measured: m.measured,
+          confidence: r.metricConfidence[m.metricKey] ?? 0,
+        };
+      }
+    }
+    const phaseFrames: Record<string, number> = {};
+    const phaseGrades: Record<string, { score: number; grade: string }> = {};
+    for (const pg of r.grade.phaseGrades) {
+      phaseFrames[pg.phase] = r.phases[pg.phase].frameIndex;
+      phaseGrades[pg.phase] = { score: pg.score, grade: pg.grade };
+    }
+    return {
+      overallScore: r.grade.score,
+      metrics: r.metrics,
+      throwingHand: r.effectiveHand,
+      declaredHand: r.throwingHand,
+      level: r.athleteLevel,
+      appVersion: r.appVersion,
+      phaseFrames,
+      phaseGrades,
+      metricsFull,
+      framingWarning: r.framingWarning,
+    };
+  }, []);
 
   // MediaPipe loading status
   const [mpLoadStatus, setMpLoadStatus] = useState("Initializing analysis engine...");
@@ -110,7 +174,7 @@ export default function AnalyzePage() {
       } catch {
         try {
           if (cancelled) return;
-          setMpLoadStatus("GPU unavailable — loading CPU mode...");
+          setMpLoadStatus("GPU unavailable, loading CPU mode...");
           const vision = await import("@mediapipe/tasks-vision");
           const filesetResolver = await vision.FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm"
@@ -160,6 +224,10 @@ export default function AnalyzePage() {
 
   const handleAnalyze = useCallback(async () => {
     if (!videoUrl || !poseLandmarkerRef.current) return;
+    if (!throwingHand) {
+      setError("Pick the pitcher's throwing hand first (RHP or LHP).");
+      return;
+    }
     setStage("analyzing");
     setError(null);
     analytics.analysisStarted();
@@ -179,7 +247,7 @@ export default function AnalyzePage() {
       );
       setResult(analysisResult);
 
-      // Progress tracking — compare with previous and save
+      // Progress tracking, compare with previous and save
       const currentPhases: SavedAnalysis["phases"] = {
         legLift: { score: 0, grade: "C" },
         drift: { score: 0, grade: "C" },
@@ -221,7 +289,7 @@ export default function AnalyzePage() {
 
       const skipGate = document.cookie.includes("pcai_lead=1");
       if (skipGate) {
-        // Returning user — silently track this analysis with stored info
+        // Returning user, silently track this analysis with stored info
         try {
           const stored = JSON.parse(localStorage.getItem("pcai_lead_info") || "{}");
           if (stored.email) {
@@ -234,8 +302,7 @@ export default function AnalyzePage() {
                 phone: stored.phone || null,
                 age: parseInt(stored.age) || 14,
                 source: "repeat-analysis",
-                overallScore: analysisResult.grade.score || null,
-                metrics: analysisResult.metrics || null,
+                ...buildAnalysisPayload(analysisResult),
               }),
             }).catch(() => {});
           }
@@ -249,7 +316,7 @@ export default function AnalyzePage() {
       setError(err.message || "Analysis failed. Try a different video.");
       setStage("upload");
     }
-  }, [videoUrl, videoFile, throwingHand, level]);
+  }, [videoUrl, videoFile, throwingHand, level, buildAnalysisPayload]);
 
   const submitLead = useCallback(async () => {
     if (!firstName.trim() || !email.trim() || !age) return;
@@ -264,8 +331,7 @@ export default function AnalyzePage() {
           phone: phone.trim() || null,
           age: parseInt(age),
           source: source || null,
-          overallScore: result?.grade.score || null,
-          metrics: result?.metrics || null,
+          ...(result ? buildAnalysisPayload(result) : { overallScore: null, metrics: null }),
         }),
       });
     } catch { /* Non-blocking */ }
@@ -281,7 +347,7 @@ export default function AnalyzePage() {
     } catch { /* localStorage may be unavailable */ }
     setSubmitting(false);
     setStage("results");
-  }, [firstName, email, phone, age, source, result]);
+  }, [firstName, email, phone, age, source, result, buildAnalysisPayload]);
 
   const reset = useCallback(() => {
     setStage("upload");
@@ -316,7 +382,7 @@ export default function AnalyzePage() {
           <div>
             <h1 className="text-2xl font-bold mb-2">Analyze Your Pitching Mechanics</h1>
             <p className="text-white/50 text-sm mb-6">
-              Upload a side-view video. AI analyzes your drift, foot strike, MER, and release &mdash; your video never leaves your device.
+              Upload a side-view video. AI analyzes your drift, foot strike, MER, and release, your video never leaves your device.
             </p>
 
             {!mpReady && !error && (
@@ -332,24 +398,29 @@ export default function AnalyzePage() {
                 {/* Options */}
                 <div className="flex gap-3 mb-6">
                   <div className="flex-1">
-                    <label className="text-xs text-white/40 mb-1 block">Throwing Hand</label>
-                    <div className="flex gap-1 bg-white/5 rounded-lg p-1">
+                    <label className="text-xs text-white/40 mb-1 block">
+                      Throwing Hand <span className="text-brand-red">*</span>
+                    </label>
+                    <div className={`flex gap-1 rounded-lg p-1 ${throwingHand === null ? "bg-white/5 ring-1 ring-brand-red/60" : "bg-white/5"}`}>
                       {(["right", "left"] as const).map((hand) => (
                         <button
                           key={hand}
-                          onClick={() => setThrowingHand(hand)}
+                          onClick={() => pickHand(hand)}
                           className={`flex-1 py-2 rounded-md text-sm font-medium transition ${throwingHand === hand ? "bg-brand-red text-white" : "text-white/50 hover:text-white/80"}`}
                         >
                           {hand === "right" ? "RHP" : "LHP"}
                         </button>
                       ))}
                     </div>
+                    {throwingHand === null && (
+                      <p className="text-[11px] text-white/40 mt-1">Required. We use this to measure the correct arm.</p>
+                    )}
                   </div>
                   <div className="flex-1">
                     <label className="text-xs text-white/40 mb-1 block">Level</label>
                     <select
                       value={level}
-                      onChange={(e) => setLevel(e.target.value as AthleteLevel)}
+                      onChange={(e) => pickLevel(e.target.value as AthleteLevel)}
                       className="w-full py-2.5 px-3 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-brand-red"
                     >
                       {Object.entries(LEVEL_LABELS).map(([key, label]) => (
@@ -391,8 +462,12 @@ export default function AnalyzePage() {
                       <button onClick={reset} className="px-5 py-3 rounded-xl bg-white/10 text-white/60 text-sm hover:bg-white/20 transition">
                         Different Video
                       </button>
-                      <button onClick={handleAnalyze} className="flex-1 px-5 py-3 rounded-xl bg-brand-red text-white font-bold text-sm hover:bg-red-700 transition">
-                        Analyze My Mechanics &rarr;
+                      <button
+                        onClick={handleAnalyze}
+                        disabled={throwingHand === null}
+                        className="flex-1 px-5 py-3 rounded-xl bg-brand-red text-white font-bold text-sm hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {throwingHand === null ? "Pick RHP or LHP to continue" : "Analyze My Mechanics →"}
                       </button>
                     </div>
                   </div>
@@ -490,6 +565,34 @@ export default function AnalyzePage() {
               <OverallGradeCard grade={result.grade} firstName={firstName || undefined} />
             </div>
 
+            {/* Framing warning: pitcher too small in frame */}
+            {result.framingWarning && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+                <span className="text-red-400 text-lg mt-0.5">&#128247;</span>
+                <div>
+                  <p className="text-sm font-bold text-red-300">Re-film for accurate numbers</p>
+                  <p className="text-xs text-white/50 mt-1 leading-relaxed">
+                    The pitcher fills only about {Math.round(result.bodyHeightFraction * 100)}% of the frame height, and precise measurement needs at least a third of the frame. Angle readings in this report are rough estimates. Re-film from about 15 to 20 feet away, side view, with the pitcher head to toe filling most of the frame, and run it again.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Hand mismatch warning */}
+            {result.handMismatch && (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3">
+                <span className="text-yellow-400 text-lg mt-0.5">&#9995;</span>
+                <div>
+                  <p className="text-sm font-bold text-yellow-300">
+                    This looks like a {result.effectiveHand === "left" ? "left" : "right"}-handed pitcher
+                  </p>
+                  <p className="text-xs text-white/50 mt-1 leading-relaxed">
+                    You selected {result.throwingHand === "left" ? "LHP" : "RHP"}, but the motion in the video reads as {result.effectiveHand === "left" ? "left" : "right"}-handed, so this report measured the {result.effectiveHand} arm. If that is wrong, re-run with the other hand selected.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* FPS Quality Banner */}
             {result.fpsQuality === "poor" && (
               <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-4 flex items-start gap-3">
@@ -497,7 +600,7 @@ export default function AnalyzePage() {
                 <div>
                   <p className="text-sm font-bold text-orange-300">Low Frame Rate Detected ({result.estimatedFPS}fps)</p>
                   <p className="text-xs text-white/50 mt-1 leading-relaxed">
-                    Your video was recorded at {result.estimatedFPS}fps. At this frame rate, the arm moves ~15-20&deg; between frames near MER, which limits detection accuracy. For much better results, <strong className="text-white/70">film in slow motion (240fps)</strong> — most iPhones and Android phones support this in Camera &rarr; Slo-Mo mode.
+                    Your video was recorded at {result.estimatedFPS}fps. At this frame rate, the arm moves ~15-20&deg; between frames near MER, which limits detection accuracy. For much better results, <strong className="text-white/70">film in slow motion (240fps)</strong>, most iPhones and Android phones support this in Camera &rarr; Slo-Mo mode.
                   </p>
                 </div>
               </div>
@@ -559,7 +662,7 @@ export default function AnalyzePage() {
                       <span className="text-yellow-400 text-sm mt-0.5">&#128170;</span>
                       <p className="text-sm text-white/60">
                         <span className="font-bold text-white/80">Work on:</span>{" "}
-                        {weaknesses.map(m => m.label).join(" and ")} &mdash; biggest areas for improvement.
+                        {weaknesses.map(m => m.label).join(" and ")}, biggest areas for improvement.
                       </p>
                     </div>
                   )}
@@ -673,7 +776,7 @@ export default function AnalyzePage() {
                   <div>
                     <h3 className="text-sm font-bold text-red-400 mb-1">Injury Risk Detected</h3>
                     <p className="text-xs text-white/60 leading-relaxed mb-2">
-                      Your analysis flagged mechanics that increase injury risk. These aren&apos;t meant to scare you &mdash; they&apos;re meant to help you fix problems before they become injuries.
+                      Your analysis flagged mechanics that increase injury risk. These aren&apos;t meant to scare you, they&apos;re meant to help you fix problems before they become injuries.
                     </p>
                     {result.grade.phaseGrades.flatMap(pg => pg.metrics).filter(m => m.injuryFlag).map(m => (
                       <div key={m.metricKey} className="text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-2 mb-1">
@@ -691,7 +794,7 @@ export default function AnalyzePage() {
               Measurements are estimates. If you experience arm pain, consult a sports medicine professional.
             </p>
 
-            {/* CTA — contextual based on findings */}
+            {/* CTA, contextual based on findings */}
             {(() => {
               const weakPhases = result.grade.phaseGrades
                 .filter((pg) => pg.grade === "C" || pg.grade === "D")
@@ -742,7 +845,7 @@ export default function AnalyzePage() {
               estimatedFPS={result.estimatedFPS}
               videoWidth={result.videoWidth}
               videoHeight={result.videoHeight}
-              throwingHand={throwingHand}
+              throwingHand={result.effectiveHand}
               fpsQuality={result.fpsQuality}
             />
           </div>

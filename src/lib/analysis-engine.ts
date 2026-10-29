@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Analysis Engine (v3)
+ * PitchingCoachAI, Analysis Engine (v3)
  *
  * Orchestrates the full analysis pipeline:
  *   1. Probe video container for real encoded FPS (MP4Box.js)
@@ -25,8 +25,9 @@ import {
   PHASE_LABELS,
 } from "./types";
 import { detectPhases } from "./phase-detector";
-import { calculateAllMetrics } from "./biomechanics";
+import { calculateAllMetricsWithConfidence } from "./biomechanics";
 import { gradeAllMetrics } from "./grading";
+import { resolveEffectiveHand } from "./side-resolution";
 import { prescribeDrills } from "./drill-prescriptions";
 import { capturePhaseFrame } from "./overlay-renderer";
 import { probeVideoProgressive, type VideoProbeResult } from "./video-probe";
@@ -49,12 +50,20 @@ const MIN_VISIBILITY = 0.15;
 const MIN_REQUIRED_VISIBLE = 4;
 const MIN_VALID_FRAMES = 5;
 
+/** Version tag persisted with every analysis so old and new measurement
+ *  models can be told apart in the database. */
+export const APP_VERSION = "2.0.0-coach-model";
+
+/** Below this fraction of frame height, fine measurements are unreliable
+ *  and the report carries a prominent re-film warning. */
+const MIN_BODY_HEIGHT_FRACTION = 0.33;
+
 /** Max file size: 500MB */
 const MAX_FILE_SIZE = 500 * 1024 * 1024;
 
 /**
  * Max frames to process in full analysis.
- * 900 frames at 240fps = 3.75 seconds — covers any trimmed pitch clip.
+ * 900 frames at 240fps = 3.75 seconds, covers any trimmed pitch clip.
  * For longer videos, we use two-pass delivery detection to trim first.
  */
 const MAX_ANALYSIS_FRAMES = 900;
@@ -268,7 +277,7 @@ async function detectDeliveryWindows(
   // A pitch creates a spike ~5-10x above baseline movement
   const allMovements = movements.map((m) => m.movement).filter((m) => m > 0);
   if (allMovements.length < 5) {
-    // Not enough data — return full video
+    // Not enough data, return full video
     return [{ startSec: 0, endSec: duration }];
   }
 
@@ -327,7 +336,7 @@ export async function extractFrames(
 ): Promise<{ frames: ValidFrame[]; video: HTMLVideoElement; nativeFPS: number }> {
   onProgress("Loading video...", 0);
 
-  // Always create a video element — needed for freeze frame capture later,
+  // Always create a video element, needed for freeze frame capture later,
   // even when WebCodecs handles the main extraction.
   const video = document.createElement("video");
   video.playsInline = true;
@@ -407,7 +416,7 @@ export async function extractFrames(
   // ── FALLBACK: SEEK-BASED EXTRACTION ────────────────────────
   // Uses video.currentTime to seek to each frame position.
   // Works for all browsers but can't guarantee every frame at high FPS.
-  // Cap at 60fps for seek-based — browsers can't reliably seek faster than ~16ms intervals.
+  // Cap at 60fps for seek-based, browsers can't reliably seek faster than ~16ms intervals.
   // Higher FPS videos (120/240) will be subsampled; WebCodecs is needed for full frame access.
   const rawTargetFPS = options?.targetFPS ?? nativeFPS;
   const targetFPS = Math.min(rawTargetFPS, 60);
@@ -444,7 +453,7 @@ export async function extractFrames(
       let done = false;
       const finish = () => { if (!done) { done = true; resolve(); } };
       video.onseeked = finish;
-      // 2s timeout per seek — if browser can't seek in 2s, skip this frame
+      // 2s timeout per seek, if browser can't seek in 2s, skip this frame
       setTimeout(finish, 2000);
     });
 
@@ -471,6 +480,18 @@ export async function extractFrames(
       }
     }
 
+    let worldKeypoints: Keypoints | undefined;
+    const rawWorld = result.worldLandmarks?.[0];
+    if (rawWorld) {
+      worldKeypoints = {};
+      for (const [idx, name] of Object.entries(LM_NAMES)) {
+        const lm = rawWorld[Number(idx)];
+        if (lm) {
+          worldKeypoints[name] = { x: lm.x, y: lm.y, z: lm.z, visibility: lm.visibility || 0 };
+        }
+      }
+    }
+
     const visibleCount = REQUIRED_KEYPOINTS.filter(
       (k) => keypoints[k] && keypoints[k].visibility >= MIN_VISIBILITY
     ).length;
@@ -480,6 +501,7 @@ export async function extractFrames(
         frameIndex: i,
         timestampMs: Math.round(time * 1000),
         keypoints,
+        worldKeypoints,
         phase: null,
       });
     }
@@ -566,7 +588,7 @@ export async function runAnalysis(
   // Only run the slow delivery scan for genuinely long clips (>8s of real action AND >1800 frames).
   // Most pitch clips are 2-4s of real action, even if playback duration is 15-20s due to slo-mo.
   if (totalEncodedFrames > MAX_ANALYSIS_FRAMES && realDurationSec > 8) {
-    // Long video — need two-pass approach
+    // Long video, need two-pass approach
     console.log(`[Pipeline] Long video: ${realDurationSec.toFixed(1)}s real (${fullDuration.toFixed(1)}s playback), ~${totalEncodedFrames} frames at ${probedFPS}fps. Running delivery detection.`);
 
     const scanVideo = document.createElement("video");
@@ -589,7 +611,7 @@ export async function runAnalysis(
       deliveryEnd = windows[0].endSec;
       const windowFrames = Math.floor((deliveryEnd - deliveryStart) * probedFPS);
       onProgress(
-        `Found pitch — analyzing ${(deliveryEnd - deliveryStart).toFixed(1)}s at full ${probedFPS}fps...`,
+        `Found pitch, analyzing ${(deliveryEnd - deliveryStart).toFixed(1)}s at full ${probedFPS}fps...`,
         0,
         `~${Math.min(windowFrames, MAX_ANALYSIS_FRAMES)} frames`
       );
@@ -604,14 +626,54 @@ export async function runAnalysis(
     targetFPS: probedFPS,
   });
 
-  // Stage 2: Detect phases
+  // Stage 1.5: Resolve the EFFECTIVE hand from the motion itself.
+  // Guards against both a wrong selection and MediaPipe label mirroring.
+  // All measurement uses the effective hand; a mismatch is surfaced as a
+  // warning, never silently ignored.
+  const side = resolveEffectiveHand(frames, throwingHand);
+  const effectiveHand = side.effectiveHand;
+  if (side.mismatchWithDeclared) {
+    console.warn(`[Pipeline] Hand mismatch: declared ${throwingHand}, motion says ${effectiveHand}. ${side.detail}`);
+  }
+
+  // Stage 1.6: Framing check. A pitcher much smaller than 1/3 of the frame
+  // height cannot be measured precisely; the report carries re-film guidance.
+  let bodyHeightFraction = 0;
+  {
+    const fractions: number[] = [];
+    for (const f of frames) {
+      const nose = f.keypoints.nose;
+      const la = f.keypoints.leftAnkle;
+      const ra = f.keypoints.rightAnkle;
+      if (!nose || nose.visibility < 0.3) continue;
+      const ankles = [la, ra].filter((a) => a && a.visibility >= 0.3) as { y: number }[];
+      if (ankles.length === 0) continue;
+      const ankleY = Math.max(...ankles.map((a) => a.y));
+      const h = ankleY - nose.y;
+      if (h > 0.02 && h < 1) fractions.push(h);
+    }
+    fractions.sort((a, b) => a - b);
+    bodyHeightFraction = fractions.length > 0 ? fractions[Math.floor(fractions.length / 2)] : 0;
+  }
+  // Head adds ~8% above the nose
+  bodyHeightFraction = Math.round(bodyHeightFraction * 1.08 * 100) / 100;
+  const framingWarning = bodyHeightFraction > 0 && bodyHeightFraction < MIN_BODY_HEIGHT_FRACTION;
+  if (framingWarning) {
+    console.warn(`[Pipeline] Framing warning: pitcher is ~${Math.round(bodyHeightFraction * 100)}% of frame height (target: 33%+)`);
+  }
+
+  // Stage 2: Detect phases (throw-anchored, using the effective hand)
   onProgress("Identifying pitching phases...", 0);
-  const phases = detectPhases(frames, throwingHand);
+  const phases = detectPhases(frames, effectiveHand);
   onProgress("Identifying pitching phases...", 100);
 
   // Stage 3: Calculate metrics
   onProgress("Measuring your mechanics...", 0);
-  const metrics = calculateAllMetrics(frames, phases, throwingHand);
+  const { metrics, confidence: metricConfidence } = calculateAllMetricsWithConfidence(
+    frames,
+    phases,
+    effectiveHand
+  );
   onProgress("Measuring your mechanics...", 100);
 
   // Stage 4: Grade everything
@@ -652,7 +714,7 @@ export async function runAnalysis(
         pg?.grade || "C",
         pg?.color || "yellow",
         phaseMetricGrades,
-        throwingHand
+        effectiveHand
       );
     }
 
@@ -678,11 +740,17 @@ export async function runAnalysis(
     frames,
     phases,
     metrics,
+    metricConfidence,
     grade: overall,
     drills,
     phaseFrameCaptures: phaseFrameCaptures as Record<PhaseName, string>,
     athleteLevel: level,
     throwingHand,
+    effectiveHand,
+    handMismatch: side.mismatchWithDeclared,
+    framingWarning,
+    bodyHeightFraction,
+    appVersion: APP_VERSION,
     estimatedFPS,
     totalFrames: frames.length,
     videoWidth,

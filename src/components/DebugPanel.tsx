@@ -69,6 +69,28 @@ export default function DebugPanel({
     return phases[phase].frameIndex >= phases[PHASE_ORDER[i - 1]].frameIndex;
   });
 
+  // Export the extracted pose stream so the coach-label regression harness
+  // (scripts/coach-harness.mjs) can replay detection and measurement
+  // offline on this exact data. No video pixels are exported.
+  function downloadPoses() {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      estimatedFPS,
+      videoWidth,
+      videoHeight,
+      throwingHand,
+      totalFrames,
+      frames,
+    };
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `poses-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="w-full">
       <button
@@ -182,6 +204,17 @@ export default function DebugPanel({
                 );
               })}
             </div>
+          </section>
+
+          {/* Harness export */}
+          <section>
+            <button
+              onClick={downloadPoses}
+              className="px-3 py-1.5 rounded border border-neutral-700 bg-neutral-900
+                         text-neutral-400 hover:text-white hover:border-[#dc2626] transition-colors"
+            >
+              Download poses JSON (for regression harness)
+            </button>
           </section>
 
           {/* Temporal Ordering */}
