@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Shared Type Definitions
+ * PitchingCoachAI, Shared Type Definitions
  * All interfaces used across the analysis pipeline.
  */
 
@@ -25,6 +25,9 @@ export interface ValidFrame {
   frameIndex: number;
   timestampMs: number;
   keypoints: Keypoints;
+  /** MediaPipe world landmarks (meters, hip-centered 3D). Present when the
+   *  extractor captured them; required for true hip-shoulder separation. */
+  worldKeypoints?: Keypoints;
   phase: PhaseName | null;
 }
 
@@ -38,7 +41,7 @@ export const PHASE_LABELS: Record<PhaseName, string> = {
   legLift: "Leg Lift",
   drift: "Stride",
   footStrike: "Foot Strike",
-  mer: "Arm Cocking",
+  mer: "Max Layback",
   release: "Ball Release",
   deceleration: "Follow-Through",
 };
@@ -46,8 +49,8 @@ export const PHASE_LABELS: Record<PhaseName, string> = {
 export const PHASE_SHORT_LABELS: Record<PhaseName, string> = {
   legLift: "Leg Lift",
   drift: "Stride",
-  footStrike: "SFC",
-  mer: "MER",
+  footStrike: "FFS",
+  mer: "Layback",
   release: "Release",
   deceleration: "Follow-Thru",
 };
@@ -99,14 +102,17 @@ export interface FootStrikeMetrics {
 }
 
 export interface MERMetrics {
-  shoulderExternalRotation: number | null; // degrees
+  /** Coach-defined layback: forearm vs ground. 90 = vertical, 180 = laid
+   *  flat back toward second base. Peak value over (FFS, release]. */
+  maxLayback: number | null;
+  shoulderExternalRotation: number | null; // DEPRECATED: fudged 2D proxy, no longer graded
   elbowHeight: number | null;              // degrees relative to shoulder line
   elbowFlexion: number | null;             // degrees
   trunkLateralTilt: number | null;         // degrees from vertical
-  leadLegBrace: number | null;             // degrees (knee extension at MER)
+  leadLegBrace: number | null;             // degrees (knee extension at layback)
   shoulderAbduction: number | null;        // degrees
-  leadLegBraceDelta: number | null;        // knee extension change from SFC to MER (degrees)
-  trunkRotationSequencing: number | null;  // pelvis-trunk timing lag (frames)
+  leadLegBraceDelta: number | null;        // knee extension change from FFS to layback (degrees)
+  trunkRotationSequencing: number | null;  // pelvis-trunk timing lag (frames), experimental, not graded
 }
 
 export interface ReleaseMetrics {
@@ -161,6 +167,9 @@ export interface MetricGrade {
   color: GradeColor;
   phase: PhaseName;
   injuryFlag: boolean;
+  /** False when the metric could not be measured on this video (low keypoint
+   *  confidence). Unmeasured metrics are excluded from all scoring. */
+  measured: boolean;
   explanation: string;
 }
 
@@ -235,11 +244,23 @@ export interface AnalysisResult {
   frames: ValidFrame[];
   phases: DetectedPhases;
   metrics: AllMetrics;
+  /** Per-metric measurement confidence 0-1 (min keypoint visibility used). */
+  metricConfidence: Record<string, number>;
   grade: OverallGrade;
   drills: DrillPrescription[];
   phaseFrameCaptures: Record<PhaseName, string>; // base64 data URLs of freeze frames
   athleteLevel: AthleteLevel;
+  /** Hand the user selected. */
   throwingHand: "left" | "right";
+  /** Hand the motion itself indicates (used for all measurement). */
+  effectiveHand: "left" | "right";
+  /** True when the detected motion disagrees with the selected hand. */
+  handMismatch: boolean;
+  /** True when the pitcher is too small in frame for reliable measurement. */
+  framingWarning: boolean;
+  /** Median body height as a fraction of frame height. */
+  bodyHeightFraction: number;
+  appVersion: string;
   estimatedFPS: number;
   totalFrames: number;
   videoWidth: number;
