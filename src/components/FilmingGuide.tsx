@@ -41,7 +41,7 @@ export default function FilmingGuide() {
               <div>
                 <p className="text-xs font-bold text-white/80 mb-0.5">Use Slow Motion (240fps)</p>
                 <p className="text-xs text-white/40 leading-relaxed">
-                  <strong className="text-white/70">This is the #1 thing you can do for accuracy.</strong> On iPhone: open Camera &rarr; swipe to Slo-Mo &rarr; record. On Android: open Camera &rarr; More &rarr; Slow Motion. 240fps gives us 8x more data than regular video — the difference between guessing and knowing at MER.
+                  <strong className="text-white/70">This is the #1 thing you can do for accuracy.</strong> On iPhone: open Camera &rarr; swipe to Slo-Mo &rarr; record. On Android: open Camera &rarr; More &rarr; Slow Motion. 240fps gives us 8x more data than regular video, the difference between guessing and knowing at MER.
                 </p>
               </div>
             </div>

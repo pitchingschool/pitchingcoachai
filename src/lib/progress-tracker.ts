@@ -1,5 +1,5 @@
 /**
- * Progress Tracker — saves analysis results to localStorage
+ * Progress Tracker, saves analysis results to localStorage
  * and provides comparison data for return visitors.
  */
 

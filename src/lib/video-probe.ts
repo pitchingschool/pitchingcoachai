@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Video Probe (Container-Level Metadata)
+ * PitchingCoachAI, Video Probe (Container-Level Metadata)
  *
  * Parses MP4/MOV containers using MP4Box.js to extract the REAL
  * encoded frame rate, not the playback rate.
@@ -11,7 +11,7 @@
  * The ONLY way to know the real rate is to parse the container and
  * read: nb_samples / (duration / timescale).
  *
- * This also detects VFR (variable frame rate) segments — iPhone slo-mo
+ * This also detects VFR (variable frame rate) segments, iPhone slo-mo
  * has 30fps bookends around the 240fps middle section.
  */
 
@@ -108,7 +108,7 @@ export function probeVideo(file: File): Promise<VideoProbeResult> {
       reject(new Error("Failed to read video file for FPS detection."));
     };
 
-    // Read the first 20MB — enough for all metadata/moov atoms.
+    // Read the first 20MB, enough for all metadata/moov atoms.
     // We don't need the full file for container parsing.
     const sliceSize = Math.min(file.size, 20 * 1024 * 1024);
     reader.readAsArrayBuffer(file.slice(0, sliceSize));
@@ -168,7 +168,7 @@ export function probeVideoProgressive(file: File): Promise<VideoProbeResult> {
         try {
           mp4.appendBuffer(buf as any);
         } catch {
-          // Parse error — try next chunk
+          // Parse error, try next chunk
         }
 
         if (!resolved) {

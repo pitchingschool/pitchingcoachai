@@ -113,6 +113,36 @@ Migration file under `supabase/migrations/`.
   rules enforced: no em dashes, plain cues, no towel drill, no
   Hershiser drill, no "torque is 80% of velocity" claim.
 
+## 6.5 Implementation status + port validation (2026-10-29)
+
+Everything in sections 1-6 is implemented on this branch:
+phase detection rebuilt (remap deleted), kp() returns null, world
+landmarks captured, hand required + persisted + motion-checked, framing
+gate, grading spread with nulls excluded, Supabase migration, harness,
+copy sweep (no em dashes, no injury language; towel/Hershiser/torque
+claims confirmed absent).
+
+Before the coach test clip arrived, the new engine was validated by
+replaying the 9 hand-labeled clips from the V3 ground-truth set (pose
+streams only, no video) through this exact code:
+
+- Strict (within 2 frames): 14/27 phase checks pass (52%), vs 38% for
+  the validated V3 engine on the same clips. Release: 7/9. Max layback:
+  6/9 within 4 frames.
+- The remaining misses are the same hard clips V3 could not solve
+  either (rear views, 8x slow-mo, athletes small in frame). The coach
+  test clip is a clean side view, which is the engine's best case, but
+  it is also very small in frame (~1/8 height), which is why the
+  framing gate exists.
+- The ACCEPTANCE gate stays what the coach set: within 2 frames of the
+  labels on the test clip, and the harness table printed before any
+  deploy.
+
+GRADING NUMBERS IN THIS BRANCH: the proposed score map and the explicit
+coach bands from section 3 are implemented so the branch is reviewable
+end to end, but they remain proposals. Any number Coach Grady changes
+at sign-off is a one-line band edit in src/lib/grading.ts.
+
 ## 7. Items needing your explicit sign-off before grading changes land
 
 1. Separation bands for 14U (25-50) and 12U (20-45) and college/pro

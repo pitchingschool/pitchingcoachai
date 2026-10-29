@@ -120,7 +120,7 @@ export default function AdminPage() {
             { label: "Last 7 Days", value: s.last7 },
             { label: "Last 30 Days", value: s.last30 },
             { label: "Analyses", value: s.totalAnalyses },
-            { label: "Avg Score", value: s.avgScore ?? "—" },
+            { label: "Avg Score", value: s.avgScore ?? "-" },
           ].map((stat) => (
             <div key={stat.label} className="bg-white/5 border border-white/10 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -129,7 +129,7 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Chart — simple bar chart */}
+        {/* Chart, simple bar chart */}
         {data?.dailyCounts && (
           <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-8">
             <h3 className="text-sm font-bold text-white/40 mb-3">Leads Per Day (Last 30 Days)</h3>
@@ -242,10 +242,10 @@ export default function AdminPage() {
                   <td className="py-2 pr-4 text-white/50">{new Date(lead.created_at).toLocaleDateString()}</td>
                   <td className="py-2 pr-4 font-medium">{lead.first_name}</td>
                   <td className="py-2 pr-4 text-white/60">{lead.email}</td>
-                  <td className="py-2 pr-4 text-white/50">{lead.phone || "—"}</td>
+                  <td className="py-2 pr-4 text-white/50">{lead.phone || "-"}</td>
                   <td className="py-2 pr-4 text-white/50">{lead.age}</td>
-                  <td className="py-2 pr-4 text-white/50">{lead.source || "—"}</td>
-                  <td className="py-2 font-bold">{lead.analyses?.overall_score ?? "—"}</td>
+                  <td className="py-2 pr-4 text-white/50">{lead.source || "-"}</td>
+                  <td className="py-2 font-bold">{lead.analyses?.overall_score ?? "-"}</td>
                 </tr>
               ))}
             </tbody>

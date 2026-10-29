@@ -15,7 +15,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
+  title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
   description:
     "Upload a pitching video. Get a full biomechanical breakdown with grades, drill prescriptions, and injury risk flags in under 60 seconds. Free. No app download. Works on any device.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     icon: "/favicon.svg",
   },
   openGraph: {
-    title: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
+    title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
     description:
       "Upload a video. Get your mechanics report in 60 seconds. Grades, drill prescriptions, and injury risk flags. No download required.",
     url: "https://pitchingcoachai.com",
@@ -44,13 +44,13 @@ export const metadata: Metadata = {
         url: "/twitter-card.png",
         width: 1200,
         height: 628,
-        alt: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
+        alt: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "PitchingCoachAI — Free AI Pitching Mechanics Analysis",
+    title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
     description:
       "Upload a pitching video. Get grades, drills, and injury flags in 60 seconds.",
     images: ["/twitter-card.png"],

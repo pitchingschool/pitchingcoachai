@@ -117,7 +117,7 @@ export default function HomePage() {
             <p className="text-lg text-white/60 mb-8 max-w-lg mx-auto lg:mx-0 animate-fade-in-up-delay-2">
               Upload a 10-second side-view video. Get a full biomechanical
               breakdown with grades, drill prescriptions, and injury risk
-              flags &mdash; in under 60 seconds.
+              flags, in under 60 seconds.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start animate-fade-in-up-delay-3">
               <Link
@@ -258,7 +258,7 @@ export default function HomePage() {
           <p className="text-white/50 text-sm leading-relaxed max-w-lg mx-auto mb-6">
             20 years of coaching experience. 100+ active pitchers from 10U travel ball
             through college programs. Based in North Canton, OH. This tool is built
-            on the same methodology Mike uses in the facility every day &mdash; focused
+            on the same methodology Mike uses in the facility every day, focused
             on the drift move, foot strike timing, max external rotation, and release
             mechanics that actually matter for velocity and arm health.
           </p>

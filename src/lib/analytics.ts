@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Simple Analytics
+ * PitchingCoachAI, Simple Analytics
  *
  * Lightweight event tracking via server-side API route.
  * No external dependencies. Privacy-friendly (no PII in events).

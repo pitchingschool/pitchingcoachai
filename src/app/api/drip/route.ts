@@ -23,11 +23,11 @@ const DRIP_SECRET = () => process.env.DRIP_CRON_SECRET || "default-drip-secret";
  * Finds leads that are due for their next drip email and sends them.
  *
  * Drip schedule:
- *   Email 1: Welcome — sent immediately (handled by /api/lead)
- *   Email 2: "The #1 Thing" — 2 days after signup
- *   Email 3: "Arm Care" — 5 days after signup
- *   Email 4: "Track Progress" — 10 days after signup
- *   Email 5: "Lesson Pitch" — 14 days after signup
+ *   Email 1: Welcome, sent immediately (handled by /api/lead)
+ *   Email 2: "The #1 Thing", 2 days after signup
+ *   Email 3: "Arm Care", 5 days after signup
+ *   Email 4: "Track Progress", 10 days after signup
+ *   Email 5: "Lesson Pitch", 14 days after signup
  *
  * Uses `drip_stage` column on leads table to track where each lead is.
  * 0 = welcome sent, 1 = email 2 sent, etc.

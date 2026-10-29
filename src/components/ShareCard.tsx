@@ -50,7 +50,7 @@ export default function ShareCard({
         });
         return;
       } catch {
-        // User cancelled or share failed — fall through to clipboard
+        // User cancelled or share failed, fall through to clipboard
       }
     }
 

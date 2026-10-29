@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Email Templates
+ * PitchingCoachAI, Email Templates
  *
  * All HTML email templates for the drip sequence.
  * Each email is designed to provide value and drive engagement
@@ -13,8 +13,8 @@ const HEADER = `
 
 const FOOTER = `
 <hr style="border: none; border-top: 1px solid #222; margin: 24px 0;" />
-<p style="font-size: 12px; color: #666;">Mike Grady — Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
-<p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate — it's free for everyone.</p>`;
+<p style="font-size: 12px; color: #666;">Mike Grady, Grady's Pitching School<br/>North Canton, OH<br/>20 years coaching experience<br/><a href="mailto:mike@gradyspitchingschool.com" style="color: #888;">mike@gradyspitchingschool.com</a></p>
+<p style="font-size: 11px; color: #444; margin-top: 16px;">P.S. Share <a href="https://pitchingcoachai.com" style="color: #666;">pitchingcoachai.com</a> with your coach or a teammate, it's free for everyone.</p>`;
 
 const WRAPPER_START = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #e0e0e0; background: #0f0f0f; padding: 32px; border-radius: 16px;">`;
 const WRAPPER_END = `</div>`;
@@ -32,11 +32,11 @@ const TIP_BOX = (title: string, content: string) => `
 
 // ============================================================
 // EMAIL 1: Welcome (sent immediately after first analysis)
-// Already implemented in lead/route.ts — this is the template reference
+// Already implemented in lead/route.ts, this is the template reference
 // ============================================================
 
 // ============================================================
-// EMAIL 2: "The #1 Thing" — sent 2 days after signup
+// EMAIL 2: "The #1 Thing", sent 2 days after signup
 // Focus: Hip-shoulder separation education + re-analysis CTA
 // ============================================================
 export function email2_theOneThing(firstName: string): { subject: string; html: string } {
@@ -59,14 +59,14 @@ ${CTA_BUTTON("Run a New Analysis", "https://pitchingcoachai.com/analyze")}
 
 <p style="font-size: 14px; line-height: 1.7;">If your report flagged separation as a weak area, I can show you exactly how to fix it in a lesson. It's usually a 2-3 week fix with the right drills.</p>
 
-<p style="font-size: 14px; line-height: 1.7;">— Coach Grady</p>
+<p style="font-size: 14px; line-height: 1.7;">, Coach Grady</p>
 
 ${FOOTER}${WRAPPER_END}`,
   };
 }
 
 // ============================================================
-// EMAIL 3: "The Arm Care Email" — sent 5 days after signup
+// EMAIL 3: "The Arm Care Email", sent 5 days after signup
 // Focus: Arm timing / late arm education + injury prevention
 // ============================================================
 export function email3_armCare(firstName: string): { subject: string; html: string } {
@@ -79,9 +79,9 @@ export function email3_armCare(firstName: string): { subject: string; html: stri
 
 <p style="font-size: 14px; line-height: 1.7;">ASMI research (the gold standard in pitching biomechanics) found that the #1 mechanical predictor of UCL injury is <strong style="color: #dc2626;">late arm timing at foot strike.</strong></p>
 
-<p style="font-size: 14px; line-height: 1.7;">Here's what that means in plain English: when your front foot hits the ground, your throwing arm should already be up in the "cocked" position — forearm pointing to the sky, elbow at shoulder height. If your arm is still down or behind you at that point, your elbow has to catch up in a fraction of a second, and that's what shreds the UCL.</p>
+<p style="font-size: 14px; line-height: 1.7;">Here's what that means in plain English: when your front foot hits the ground, your throwing arm should already be up in the "cocked" position, forearm pointing to the sky, elbow at shoulder height. If your arm is still down or behind you at that point, your elbow has to catch up in a fraction of a second, and that's what shreds the UCL.</p>
 
-${TIP_BOX("How to Check", "PitchingCoachAI measures this as 'Arm Timing' in your Foot Strike phase. A reading above 30° means your arm is late. Above 40° is a red flag. Upload a side-view video and look at your Foot Strike grade — if Arm Timing shows yellow or red, address it before you ramp up throwing intensity.")}
+${TIP_BOX("How to Check", "PitchingCoachAI measures this as 'Arm Timing' in your Foot Strike phase. A reading above 30° means your arm is late. Above 40° is a red flag. Upload a side-view video and look at your Foot Strike grade, if Arm Timing shows yellow or red, address it before you ramp up throwing intensity.")}
 
 <p style="font-size: 14px; line-height: 1.7;">The fix is usually simple: Mirror work (5 minutes/day) + the T-Position Rocker drill. Your report will prescribe the exact drill if your arm timing needs work.</p>
 
@@ -98,7 +98,7 @@ ${FOOTER}${WRAPPER_END}`,
 }
 
 // ============================================================
-// EMAIL 4: "Track Your Progress" — sent 10 days after signup
+// EMAIL 4: "Track Your Progress", sent 10 days after signup
 // Focus: Re-engagement + progress tracking feature
 // ============================================================
 export function email4_trackProgress(firstName: string): { subject: string; html: string } {
@@ -113,22 +113,22 @@ export function email4_trackProgress(firstName: string): { subject: string; html
 
 <p style="font-size: 14px; line-height: 1.7;">PitchingCoachAI now tracks your analysis history. When you run a new analysis, it automatically compares your current scores to your previous ones and shows you exactly what improved and what still needs work.</p>
 
-${TIP_BOX("Pro Tip", "Film yourself from the same angle and distance each time for the most accurate comparison. Side view, full body, same camera height. Think of it like a weigh-in — consistency matters.")}
+${TIP_BOX("Pro Tip", "Film yourself from the same angle and distance each time for the most accurate comparison. Side view, full body, same camera height. Think of it like a weigh-in, consistency matters.")}
 
 <p style="font-size: 14px; line-height: 1.7;">After 7-10 days of focused drill work, you should see measurable improvement in your targeted metrics. Upload a new video and see where you stand.</p>
 
 ${CTA_BUTTON("Track My Progress", "https://pitchingcoachai.com/analyze")}
 
-<p style="font-size: 14px; line-height: 1.7;">If you're not seeing improvement, that's actually useful information too — it usually means you need hands-on coaching to feel the right positions. That's what I'm here for.</p>
+<p style="font-size: 14px; line-height: 1.7;">If you're not seeing improvement, that's actually useful information too, it usually means you need hands-on coaching to feel the right positions. That's what I'm here for.</p>
 
-<p style="font-size: 14px; line-height: 1.7;">— Coach Grady</p>
+<p style="font-size: 14px; line-height: 1.7;">, Coach Grady</p>
 
 ${FOOTER}${WRAPPER_END}`,
   };
 }
 
 // ============================================================
-// EMAIL 5: "The Lesson Pitch" — sent 14 days after signup
+// EMAIL 5: "The Lesson Pitch", sent 14 days after signup
 // Focus: Convert to lesson booking
 // ============================================================
 export function email5_lessonPitch(firstName: string): { subject: string; html: string } {
@@ -137,7 +137,7 @@ export function email5_lessonPitch(firstName: string): { subject: string; html: 
     html: `${WRAPPER_START}${HEADER}
 <p style="font-size: 16px; color: #fff;">Hey ${firstName},</p>
 
-<p style="font-size: 14px; line-height: 1.7;">You've been using PitchingCoachAI — which means you care about getting better. That already puts you ahead of most pitchers.</p>
+<p style="font-size: 14px; line-height: 1.7;">You've been using PitchingCoachAI, which means you care about getting better. That already puts you ahead of most pitchers.</p>
 
 <p style="font-size: 14px; line-height: 1.7;">Here's what AI can do for you:</p>
 <ul style="font-size: 14px; line-height: 1.8; color: #ccc; padding-left: 20px;">
@@ -162,7 +162,7 @@ ${CTA_BUTTON("Book a Lesson with Mike", "https://gradyspitchingschool.com")}
 
 <p style="font-size: 14px; line-height: 1.7;">Or just reply to this email with any questions. I read every one.</p>
 
-<p style="font-size: 14px; line-height: 1.7;">— Coach Grady<br/><span style="color: #888;">Grady's Pitching School | North Canton, OH</span></p>
+<p style="font-size: 14px; line-height: 1.7;">, Coach Grady<br/><span style="color: #888;">Grady's Pitching School | North Canton, OH</span></p>
 
 ${FOOTER}${WRAPPER_END}`,
   };

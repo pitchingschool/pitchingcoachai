@@ -1,5 +1,5 @@
 /**
- * PitchingCoachAI — Canvas Overlay Renderer
+ * PitchingCoachAI, Canvas Overlay Renderer
  *
  * Draws skeleton, angle arcs, and measurement labels on a canvas
  * overlaid on top of the video element. Supports:
@@ -252,7 +252,7 @@ export function drawPhaseBadge(
 ): void {
   ctx.save();
 
-  const text = `${phaseName} — ${grade}`;
+  const text = `${phaseName}, ${grade}`;
   ctx.font = "bold 14px -apple-system, sans-serif";
   const textWidth = ctx.measureText(text).width;
   const pillW = textWidth + 24;
