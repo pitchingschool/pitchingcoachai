@@ -47,6 +47,7 @@ export default function Scorecard({ metrics }: { metrics: MetricGrade[] }) {
       {metrics.map((m) => {
         const isExpanded = expanded === m.metricKey;
         const isInfoOnly = m.metricKey === "release.armSlot";
+        const notMeasured = m.measured === false;
         const barWidth = GRADE_SCORES[m.grade] ?? 50;
 
         return (
@@ -57,28 +58,20 @@ export default function Scorecard({ metrics }: { metrics: MetricGrade[] }) {
             >
               <div className="flex items-center gap-3">
                 {/* Grade dot */}
-                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${DOT_COLORS[m.color]}`} />
+                <div className={`w-3 h-3 rounded-full flex-shrink-0 ${notMeasured ? "bg-white/20" : DOT_COLORS[m.color]}`} />
 
-                {/* Label + injury flag */}
+                {/* Label */}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium truncate">{m.label}</div>
-                  {m.injuryFlag && (
-                    <div className="text-[10px] text-red-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      Injury Risk
-                    </div>
-                  )}
                 </div>
 
                 {/* Value + grade */}
                 <div className="text-right flex-shrink-0">
                   <div className="text-sm font-bold">
-                    {m.value !== null ? `${m.value}${m.unit}` : "N/A"}
+                    {notMeasured ? "n/a" : m.value !== null ? `${m.value}${m.unit}` : "N/A"}
                   </div>
-                  <div className={`text-xs font-bold ${TEXT_COLORS[m.color]}`}>
-                    {isInfoOnly ? "Info" : m.grade}
+                  <div className={`text-xs font-bold ${notMeasured ? "text-white/40" : TEXT_COLORS[m.color]}`}>
+                    {notMeasured ? "Not measured" : isInfoOnly ? "Info" : m.grade}
                   </div>
                 </div>
 
@@ -92,7 +85,7 @@ export default function Scorecard({ metrics }: { metrics: MetricGrade[] }) {
               </div>
 
               {/* Mini progress bar */}
-              {!isInfoOnly && (
+              {!isInfoOnly && !notMeasured && (
                 <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${BAR_COLORS[m.color]}`}
