@@ -102,6 +102,97 @@ function meanVisibility(frame: ValidFrame, keys: string[]): number {
   return count > 0 ? sum / count : 0;
 }
 
+// ============================================================
+// POSE STREAM REPAIR
+// ============================================================
+
+const LEG_PAIRS: [string, string][] = [
+  ["leftHip", "rightHip"],
+  ["leftKnee", "rightKnee"],
+  ["leftAnkle", "rightAnkle"],
+  ["leftHeel", "rightHeel"],
+  ["leftFootIndex", "rightFootIndex"],
+];
+
+/**
+ * Repairs MediaPipe left/right identity swaps in the legs: for a few
+ * frames (typically while the trunk rotates across the camera) the
+ * model teleports each landmark onto its mirror twin's position, then
+ * swaps back. Detectable because the "crossed" assignment is far
+ * closer to the previous frame than the straight one. A second pass
+ * runs a 5-frame positional median over leg landmarks to erase the
+ * 1-2 frame partial-mix excursions left at the swap edges. Legs only:
+ * the throwing arm's whip is real single-frame motion and must never
+ * be filtered. Mutates frames in place (2D and world together) so
+ * detection AND measurement both see the repaired stream.
+ */
+export function repairSideSwaps(frames: ValidFrame[]): number {
+  let fixes = 0;
+  for (let i = 1; i < frames.length; i++) {
+    const prev = frames[i - 1].keypoints;
+    const cur = frames[i].keypoints;
+    for (const [L, R] of LEG_PAIRS) {
+      const pl = prev[L];
+      const pr = prev[R];
+      const cl = cur[L];
+      const cr = cur[R];
+      if (!pl || !pr || !cl || !cr) continue;
+      if (
+        pl.visibility < VIS || pr.visibility < VIS ||
+        cl.visibility < VIS || cr.visibility < VIS
+      ) continue;
+      const same = dist(cl, pl) + dist(cr, pr);
+      const cross = dist(cl, pr) + dist(cr, pl);
+      if (cross < same * 0.5) {
+        cur[L] = cr;
+        cur[R] = cl;
+        const w = frames[i].worldKeypoints;
+        if (w && w[L] && w[R]) {
+          const t = w[L];
+          w[L] = w[R];
+          w[R] = t;
+        }
+        fixes++;
+      }
+    }
+  }
+
+  const legKeys = LEG_PAIRS.flat();
+  for (const key of legKeys) {
+    const xs: (number | null)[] = frames.map((f) => {
+      const p = f.keypoints[key];
+      return p && p.visibility >= VIS ? p.x : null;
+    });
+    const ys: (number | null)[] = frames.map((f) => {
+      const p = f.keypoints[key];
+      return p && p.visibility >= VIS ? p.y : null;
+    });
+    for (let i = 0; i < frames.length; i++) {
+      const p = frames[i].keypoints[key];
+      if (!p || p.visibility < VIS) continue;
+      const wx: number[] = [];
+      const wy: number[] = [];
+      for (let j = Math.max(0, i - 2); j <= Math.min(frames.length - 1, i + 2); j++) {
+        if (xs[j] !== null) wx.push(xs[j] as number);
+        if (ys[j] !== null) wy.push(ys[j] as number);
+      }
+      if (wx.length < 3) continue;
+      wx.sort((a, b) => a - b);
+      wy.sort((a, b) => a - b);
+      frames[i].keypoints[key] = {
+        ...p,
+        x: wx[Math.floor(wx.length / 2)],
+        y: wy[Math.floor(wy.length / 2)],
+      };
+    }
+  }
+
+  if (fixes > 0 && typeof console !== "undefined") {
+    console.log(`[PoseRepair] Fixed ${fixes} left/right leg identity swaps`);
+  }
+  return fixes;
+}
+
 /**
  * Coach-defined layback angle: forearm (elbow→wrist) vs the ground.
  *   90 = forearm straight up.

@@ -29,7 +29,7 @@ import {
   type Point2D,
   getSideKeys,
 } from "./types";
-import { laybackAngle, resolveThrowDirection } from "./phase-detector";
+import { laybackAngle, resolveThrowDirection, repairSideSwaps } from "./phase-detector";
 
 // ============================================================
 // GEOMETRY HELPERS (all null-tolerant)
@@ -582,6 +582,13 @@ export function calculateAllMetricsWithConfidence(
 ): { metrics: AllMetrics; confidence: Record<string, number> } {
   const S = getSideKeys(throwingHand);
   const C: ConfidenceMap = {};
+
+  // Fix left/right leg identity swaps and swap-edge excursions before
+  // any angle is measured; a swapped frame at a phase moment would
+  // otherwise read the WRONG leg's joints. Runs after phase detection
+  // on purpose: detection is calibrated on the raw stream.
+  repairSideSwaps(frames);
+
   const throwDirSign = resolveThrowDirection(frames, throwingHand, phases.release.frameIndex);
 
   const metrics: AllMetrics = {

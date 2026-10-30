@@ -1,37 +1,21 @@
 {
-  "version": 1,
-  "description": "Coach Grady's frame-by-frame labels for regression clips. Clips live in this folder locally and are NEVER committed (minors' videos, public repo). Frame = time x 30 (app frame numbering). Tolerances: frames within 2, angles within 10 degrees.",
+  "version": 2,
+  "description": "Coach Grady's frame-by-frame labels for regression clips. Clips live in this folder locally and are NEVER committed (minors' videos, public repo). Frame = time x fps (app frame numbering). Tolerances: frames within 2, angles within 10 degrees.",
   "clips": {
     "test-clip-2026-10-lhp15.mov": {
-      "athlete": "anonymized: 15yo HS freshman, LHP, 5'4\", 110 lbs",
-      "video": "side view from first base side (open side for LHP), 1920x1080, 30fps, HEVC, ~9.3s, pitcher ~1/8 frame height",
+      "athlete": "anonymized: 15yo HS freshman, 5'4\", 110 lbs",
+      "video": "indoor facility, rear three-quarter view (camera behind the mound, open side), 1920x1080, 30fps, HEVC, 14.5s, single pitch with delivery at ~12.7-13.4s, pitcher ~2/3 frame height. NOT a true side view, so angle metrics are not labeled for this clip.",
       "throwingHand": "left",
       "level": "highschool",
       "fps": 30,
+      "labeling": "Frame reads made from a frame-numbered contact sheet plus zoomed crops of the landing foot and the ball leaving the hand (ball visibly separated by frame 400). Labeling delegated to Claude by Coach Grady on 2026-10-30; pending his eyeball confirmation against the contact sheet.",
       "phases": {
-        "footStrike": { "frame": 188, "frameMax": 189 },
-        "maxLayback": { "frame": 204, "frameMin": 203, "frameMax": 205 },
-        "release": { "frame": 207 }
+        "footStrike": { "frame": 385, "frameMax": 387 },
+        "maxLayback": { "frame": 395, "frameMax": 396 },
+        "release": { "frame": 398, "frameMax": 399 }
       },
-      "metrics": {
-        "hipShoulderSepAtFFS": { "value": 6, "tolerance": 10, "units": "deg" },
-        "frontKneeAtFFS": { "value": 105, "min": 100, "max": 110, "tolerance": 10, "units": "deg" },
-        "armHeightAtFFS": { "value": 45, "tolerance": 10, "units": "deg" },
-        "elbowBendAtFFS": { "value": 90, "tolerance": 10, "units": "deg" },
-        "maxLayback": { "value": 145, "tolerance": 10, "units": "deg" }
-      },
-      "appBaseline": {
-        "note": "What the live app read on this clip before the fix (verified)",
-        "phases": { "footStrike": 193, "mer": 194, "release": 195 },
-        "metrics": {
-          "hipShoulderSep": 6,
-          "frontKneeAtFFS": 180,
-          "armHeightAtLayback": 31,
-          "elbowBendAtLayback": 0,
-          "trunkTiltAtRelease": 0,
-          "frontLegAtRelease": 180
-        }
-      }
+      "metrics": {},
+      "notes": "Angle metrics intentionally unlabeled: the oblique camera angle makes human protractor reads unreliable, and the same obliquity distorts the app's 2D angle measurements. A true SIDE-VIEW labeled clip is still required to validate the measured angles and the grading bands before deploy. The original coach-labeled side-view clip is lost; its labels (FFS 188-189, max layback 203-205, release ~207; old-app baseline FS 193 / MER 194 / release 195; knee 100-110, arm height ~45, elbow ~90, max layback ~145, separation ~6) are retired and kept here only for the record."
     }
   }
 }
