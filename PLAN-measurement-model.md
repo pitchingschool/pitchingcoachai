@@ -138,6 +138,20 @@ streams only, no video) through this exact code:
   labels on the test clip, and the harness table printed before any
   deploy.
 
+UPDATE 2026-10-30: the original side-view clip is lost. The
+replacement test clip (indoor, rear three-quarter view) was labeled
+from a frame-numbered contact sheet (delegated by Coach Grady) and the
+harness now reads: max layback PASS (395 vs 395-396), release PASS
+(400 vs 398-399, ball visibly separated by frame 400), foot strike
+394 vs 385-387 (+7: on this oblique angle the ankle height barely
+changes and 2D data cannot pin the plant; side views do better).
+Along the way two production bugs were found and fixed: the extractor
+silently dropped all frames between keyframes after every decode
+batch, and MediaPipe leg identity swaps corrupted leg measurements
+(now repaired before measurement). Still required before deploy: a
+true SIDE-VIEW labeled clip to validate the five coach angle metrics
+and the grading bands; the current clip validates timing only.
+
 GRADING NUMBERS IN THIS BRANCH: the proposed score map and the explicit
 coach bands from section 3 are implemented so the branch is reviewable
 end to end, but they remain proposals. Any number Coach Grady changes
