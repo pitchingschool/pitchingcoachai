@@ -140,17 +140,32 @@ streams only, no video) through this exact code:
 
 UPDATE 2026-10-30: the original side-view clip is lost. The
 replacement test clip (indoor, rear three-quarter view) was labeled
-from a frame-numbered contact sheet (delegated by Coach Grady) and the
-harness now reads: max layback PASS (395 vs 395-396), release PASS
-(400 vs 398-399, ball visibly separated by frame 400), foot strike
-394 vs 385-387 (+7: on this oblique angle the ankle height barely
-changes and 2D data cannot pin the plant; side views do better).
+from a frame-numbered contact sheet (delegated by Coach Grady).
 Along the way two production bugs were found and fixed: the extractor
 silently dropped all frames between keyframes after every decode
 batch, and MediaPipe leg identity swaps corrupted leg measurements
-(now repaired before measurement). Still required before deploy: a
-true SIDE-VIEW labeled clip to validate the five coach angle metrics
-and the grading bands; the current clip validates timing only.
+(now repaired before detection and measurement).
+
+UPDATE 2026-10-30 (later): foot strike rebuilt as CONTACT FUSION on
+the heel, toe and ankle after Coach Grady's direction that foot
+strike must be detectable from any angle ("it's when the foot hits
+the ground"). Developed by a 7-theory agent panel against a 10-clip
+scoring rig, adversarially audited.
+
+CURRENT HARNESS STATE:
+- Coach test clip: ALL PASS. Foot strike 384 (band 385-387),
+  max layback 396 (band 395-396), release 400 (band 398-399).
+- 9-clip V3 ground-truth set: foot strike 9/9 within 2 frames,
+  overall strict 74% (engine history: old V1 undefined/remapped,
+  V3 benchmark 38%, first port 48%, now 74%). Remaining misses are
+  max-layback on 4 hard clips and release on 3.
+
+Still required before deploy: a true SIDE-VIEW labeled clip to
+validate the five coach angle metrics and the grading bands; the
+current clip validates timing only. Honest caveat: the contact-fusion
+constants were calibrated on these 10 clips (no held-out set), so
+expect some regression on brand-new footage; each next labeled clip
+hardens it.
 
 GRADING NUMBERS IN THIS BRANCH: the proposed score map and the explicit
 coach bands from section 3 are implemented so the branch is reviewable
