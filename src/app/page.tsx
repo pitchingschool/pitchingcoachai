@@ -116,8 +116,8 @@ export default function HomePage() {
             </h1>
             <p className="text-lg text-white/60 mb-8 max-w-lg mx-auto lg:mx-0 animate-fade-in-up-delay-2">
               Upload a 10-second side-view video. Get a full biomechanical
-              breakdown with grades, drill prescriptions, and injury risk
-              flags, in under 60 seconds.
+              breakdown with grades, drill prescriptions, and a clear list
+              of what needs work, in under 60 seconds.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start animate-fade-in-up-delay-3">
               <Link
@@ -220,8 +220,8 @@ export default function HomePage() {
               color: "border-green-500/30",
             },
             {
-              phase: "MER",
-              desc: "Maximum external rotation \u2014 shoulder layback, elbow height, injury risk",
+              phase: "Max Layback",
+              desc: "How far the arm lays back, elbow bend, and arm height at peak load",
               color: "border-yellow-500/30",
             },
             {
@@ -237,7 +237,7 @@ export default function HomePage() {
           ))}
         </div>
         <div className="text-center mt-8">
-          <p className="text-sm text-white/40 mb-1">Plus: personalized drill prescriptions and injury risk flags</p>
+          <p className="text-sm text-white/40 mb-1">Plus: personalized drill prescriptions for every area that needs work</p>
           <p className="text-xs text-white/30">Grading benchmarked against ASMI and Driveline research data</p>
         </div>
       </section>
@@ -279,7 +279,7 @@ export default function HomePage() {
             {
               icon: "\ud83c\udf10",
               title: "Works on Any Device",
-              desc: "No iOS app to download, no account to create. Upload from your phone, tablet, or laptop. Android, iPhone, Chrome, Safari \u2014 all supported.",
+              desc: "No iOS app to download, no account to create. Upload from your phone, tablet, or laptop. Android, iPhone, Chrome, Safari, all supported.",
               highlight: "vs. Mustard (iOS only)",
             },
             {
@@ -291,7 +291,7 @@ export default function HomePage() {
             {
               icon: "\ud83c\udfa4",
               title: "Real Coach, Real Methodology",
-              desc: "Grading thresholds set by a coach with 20 years of experience \u2014 not software engineers guessing at what good mechanics look like.",
+              desc: "Grading thresholds set by a coach with 20 years of experience, not software engineers guessing at what good mechanics look like.",
               highlight: "ASMI + Driveline informed",
             },
           ].map((item) => (
@@ -318,7 +318,7 @@ export default function HomePage() {
           {[
             {
               q: "What kind of video do I need?",
-              a: "A side-view (perpendicular to the pitching direction) video showing the pitcher from head to toe. Phone camera is fine \u2014 3 to 10 seconds, any format (MP4, MOV, AVI, WebM). Higher frame rate (60fps) gives better results, but 30fps works too.",
+              a: "A side-view (perpendicular to the pitching direction) video showing the pitcher from head to toe. Phone camera is fine, 3 to 10 seconds, any format (MP4, MOV, AVI, WebM). Higher frame rate (60fps) gives better results, but 30fps works too.",
             },
             {
               q: "Is it really free? What\u2019s the catch?",
@@ -326,7 +326,7 @@ export default function HomePage() {
             },
             {
               q: "How accurate is AI analysis compared to a real coach?",
-              a: "AI gives you objective data \u2014 angles, timing, positions. It\u2019s excellent at measuring what\u2019s happening. A real coach tells you WHY it\u2019s happening and builds a plan to fix it. Use both: AI for data, coach for development.",
+              a: "AI gives you objective data, angles, timing, positions. It\u2019s excellent at measuring what\u2019s happening. A real coach tells you WHY it\u2019s happening and builds a plan to fix it. Use both: AI for data, coach for development.",
             },
             {
               q: "Is my video uploaded to a server?",

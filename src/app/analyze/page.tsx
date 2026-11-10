@@ -635,27 +635,16 @@ export default function AnalyzePage() {
             {/* Key Findings Summary */}
             {(() => {
               const allMetrics = result.grade.phaseGrades.flatMap(pg => pg.metrics);
-              const strengths = allMetrics.filter(m => m.grade === "A+" || m.grade === "A").slice(0, 2);
+              const strengths = allMetrics.filter(m => m.measured && (m.grade === "A+" || m.grade === "A")).slice(0, 2);
               const weaknesses = allMetrics
-                .filter(m => (m.grade === "C" || m.grade === "D" || m.grade === "F") && !m.injuryFlag)
+                .filter(m => m.measured && (m.grade === "C" || m.grade === "D" || m.grade === "F"))
                 .slice(0, 2);
-              const injuries = allMetrics.filter(m => m.injuryFlag);
 
-              if (strengths.length === 0 && weaknesses.length === 0 && injuries.length === 0) return null;
+              if (strengths.length === 0 && weaknesses.length === 0) return null;
 
               return (
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
                   <h3 className="text-sm font-bold text-white/60 uppercase tracking-wider">Key Findings</h3>
-
-                  {injuries.length > 0 && (
-                    <div className="flex items-start gap-2">
-                      <span className="text-red-400 text-sm mt-0.5">&#9888;&#65039;</span>
-                      <p className="text-sm text-red-300">
-                        <span className="font-bold">Watch:</span>{" "}
-                        {injuries.map(m => m.label).join(" and ")} {injuries.length === 1 ? "is" : "are"} in a range that increases injury risk.
-                      </p>
-                    </div>
-                  )}
 
                   {weaknesses.length > 0 && (
                     <div className="flex items-start gap-2">
@@ -767,26 +756,6 @@ export default function AnalyzePage() {
               </h3>
               <ShareCard grade={result.grade} firstName={firstName || undefined} />
             </div>
-
-            {/* Injury warnings callout */}
-            {result.grade.phaseGrades.flatMap(pg => pg.metrics).some(m => m.injuryFlag) && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-5">
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl flex-shrink-0">&#9888;&#65039;</div>
-                  <div>
-                    <h3 className="text-sm font-bold text-red-400 mb-1">Injury Risk Detected</h3>
-                    <p className="text-xs text-white/60 leading-relaxed mb-2">
-                      Your analysis flagged mechanics that increase injury risk. These aren&apos;t meant to scare you, they&apos;re meant to help you fix problems before they become injuries.
-                    </p>
-                    {result.grade.phaseGrades.flatMap(pg => pg.metrics).filter(m => m.injuryFlag).map(m => (
-                      <div key={m.metricKey} className="text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-2 mb-1">
-                        <span className="font-bold">{m.label}</span>: {m.explanation}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Disclaimer */}
             <p className="text-[10px] text-white/20 text-center leading-relaxed">

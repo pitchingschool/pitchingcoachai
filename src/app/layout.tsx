@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
   description:
-    "Upload a pitching video. Get a full biomechanical breakdown with grades, drill prescriptions, and injury risk flags in under 60 seconds. Free. No app download. Works on any device.",
+    "Upload a pitching video. Get a full biomechanical breakdown with grades, drill prescriptions, and a clear list of what needs work in under 60 seconds. Free. No app download. Works on any device.",
   keywords: [
     "pitching mechanics",
     "pitching analysis",
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
     description:
-      "Upload a video. Get your mechanics report in 60 seconds. Grades, drill prescriptions, and injury risk flags. No download required.",
+      "Upload a video. Get your mechanics report in 60 seconds. Grades, drill prescriptions, and what needs work. No download required.",
     url: "https://pitchingcoachai.com",
     siteName: "PitchingCoachAI",
     type: "website",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "PitchingCoachAI, Free AI Pitching Mechanics Analysis",
     description:
-      "Upload a pitching video. Get grades, drills, and injury flags in 60 seconds.",
+      "Upload a pitching video. Get grades, drills, and what needs work in 60 seconds.",
     images: ["/twitter-card.png"],
   },
   robots: {
@@ -78,7 +78,7 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "WebApplication",
               name: "PitchingCoachAI",
-              description: "Free AI pitching mechanics analysis tool. Upload a video, get grades, drill prescriptions, and injury risk flags in 60 seconds.",
+              description: "Free AI pitching mechanics analysis tool. Upload a video, get grades, drill prescriptions, and a clear list of what needs work in 60 seconds.",
               url: "https://pitchingcoachai.com",
               applicationCategory: "SportsApplication",
               operatingSystem: "Any",
