@@ -50,8 +50,11 @@ export async function POST(req: NextRequest) {
 
     // 1. Save analysis. Old flat columns keep being written for backward
     // compatibility; the new columns carry everything the coach needs to
-    // review a report (see supabase/migrations/).
-    const analysis = await supabaseInsert("analyses", {
+    // review a report (see supabase/migrations/). If the database has not
+    // had the migration applied yet, the full insert fails on the unknown
+    // columns, so retry with the legacy shape: a lead must never be lost
+    // to a schema lag.
+    const legacyColumns = {
       overall_score: overallScore,
       hip_shoulder_sep: metrics?.footStrike?.hipShoulderSep ?? null,
       lead_knee_fs: metrics?.footStrike?.leadKneeAngle ?? null,
@@ -60,6 +63,9 @@ export async function POST(req: NextRequest) {
       trunk_tilt: metrics?.release?.trunkForwardFlexion ?? null,
       arm_slot: metrics?.release?.armSlot ?? null,
       lead_knee_extension: metrics?.release?.leadLegExtension ?? null,
+    };
+    let analysis = await supabaseInsert("analyses", {
+      ...legacyColumns,
       // New measurement-model columns
       throwing_hand: throwingHand === "left" || throwingHand === "right" ? throwingHand : null,
       declared_hand: declaredHand === "left" || declaredHand === "right" ? declaredHand : null,
@@ -70,6 +76,10 @@ export async function POST(req: NextRequest) {
       metrics_full: metricsFull ?? null,
       framing_warning: typeof framingWarning === "boolean" ? framingWarning : null,
     });
+    if (!analysis) {
+      console.warn("[Lead API] Full analysis insert failed (migration pending?), retrying with legacy columns");
+      analysis = await supabaseInsert("analyses", legacyColumns);
+    }
 
     // 2. Save lead (drip_stage = 0 means welcome email sent, ready for drip sequence)
     await supabaseInsert("leads", {
