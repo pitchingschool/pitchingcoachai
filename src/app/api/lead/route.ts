@@ -44,9 +44,11 @@ export async function POST(req: NextRequest) {
       phaseFrames, phaseGrades, metricsFull, framingWarning,
     } = body;
 
-    if (!firstName || !email || !age) {
+    // Email is the only hard requirement: the gate asks for one field.
+    if (!email || typeof email !== "string" || !email.includes("@")) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
+    const safeName: string = typeof firstName === "string" && firstName.trim() ? firstName.trim() : "";
 
     // 1. Save analysis. Old flat columns keep being written for backward
     // compatibility; the new columns carry everything the coach needs to
@@ -83,14 +85,64 @@ export async function POST(req: NextRequest) {
 
     // 2. Save lead (drip_stage = 0 means welcome email sent, ready for drip sequence)
     await supabaseInsert("leads", {
-      first_name: firstName,
+      first_name: safeName || "Parent",
       email,
       phone: phone || null,
-      age: parseInt(age),
+      age: age ? parseInt(age) : null,
       source: source || null,
       analysis_id: analysis?.id || null,
       drip_stage: 0,
     });
+
+    // 2.5 Subscribe the lead to Klaviyo so the welcome flow can run.
+    // Uses the public client subscription endpoint (public site key only,
+    // no secret). Non-blocking: a Klaviyo hiccup must never cost a lead.
+    try {
+      const companyId = process.env.KLAVIYO_COMPANY_ID || "Tehvme";
+      const listId = process.env.KLAVIYO_LIST_ID || "Sm586k"; // PitchingCoachAI App Leads
+      const klaviyoRes = await fetch(
+        `https://a.klaviyo.com/client/subscriptions/?company_id=${companyId}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            revision: "2024-10-15",
+          },
+          body: JSON.stringify({
+            data: {
+              type: "subscription",
+              attributes: {
+                custom_source: "PitchingCoachAI analyzer",
+                profile: {
+                  data: {
+                    type: "profile",
+                    attributes: {
+                      email,
+                      ...(safeName ? { first_name: safeName } : {}),
+                      properties: {
+                        pcai_score: overallScore ?? null,
+                        pcai_level: typeof level === "string" ? level : null,
+                        pcai_app_version: typeof appVersion === "string" ? appVersion : null,
+                        pcai_pitcher_age: age ? parseInt(age) : null,
+                        pcai_last_analysis: new Date().toISOString(),
+                      },
+                    },
+                  },
+                },
+              },
+              relationships: {
+                list: { data: { type: "list", id: listId } },
+              },
+            },
+          }),
+        }
+      );
+      if (!klaviyoRes.ok) {
+        console.error("[Lead API] Klaviyo subscribe error:", klaviyoRes.status, await klaviyoRes.text());
+      }
+    } catch (klaviyoErr) {
+      console.error("[Lead API] Klaviyo subscribe failed:", klaviyoErr);
+    }
 
     // 3. Send welcome email via Resend
     try {
@@ -100,14 +152,16 @@ export async function POST(req: NextRequest) {
       await resend.emails.send({
         from: "Mike Grady <mike@gradyspitchingschool.com>",
         to: email,
-        subject: `${firstName}, your pitching mechanics report is ready${scoreText}`,
+        subject: safeName
+          ? `${safeName}, your pitching mechanics report is ready${scoreText}`
+          : `Your pitching mechanics report is ready${scoreText}`,
         html: `
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto; color: #e0e0e0; background: #0f0f0f; padding: 32px; border-radius: 16px;">
   <div style="text-align: center; margin-bottom: 24px;">
     <span style="font-size: 20px; font-weight: 800; color: #fff;">PitchingCoach</span><span style="font-size: 20px; font-weight: 800; color: #dc2626;">AI</span>
   </div>
 
-  <p style="font-size: 16px; color: #fff;">Hey ${firstName},</p>
+  <p style="font-size: 16px; color: #fff;">Hey ${safeName || "there"},</p>
 
   <p style="font-size: 14px; line-height: 1.7;">Your mechanics report is ready. Head back to <a href="https://pitchingcoachai.com/analyze" style="color: #dc2626; text-decoration: underline;">PitchingCoachAI.com</a> anytime to run another analysis and track your progress over time.</p>
 

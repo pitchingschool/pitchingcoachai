@@ -319,7 +319,7 @@ export default function AnalyzePage() {
   }, [videoUrl, videoFile, throwingHand, level, buildAnalysisPayload]);
 
   const submitLead = useCallback(async () => {
-    if (!firstName.trim() || !email.trim() || !age) return;
+    if (!email.trim() || !email.includes("@")) return;
     setSubmitting(true);
     try {
       await fetch("/api/lead", {
@@ -521,37 +521,24 @@ export default function AnalyzePage() {
                 <h2 className="text-2xl font-bold mb-2">Your Analysis Is Ready</h2>
               </>
             )}
-            <p className="text-white/50 text-sm mb-6">Enter your info to unlock your full mechanics report with phase breakdowns, metrics, and drill prescriptions</p>
+            <p className="text-white/50 text-sm mb-6">
+              The full report is ready: every phase graded, every measurement, and the drill plan to fix what needs work. One email unlocks it.
+            </p>
             <div className="space-y-3 text-left">
-              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First Name *"
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Parent or guardian email *" autoFocus
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-brand-red" />
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email *"
+              <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name (optional)"
                 className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-brand-red" />
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="Phone (optional)"
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-brand-red" />
-              <select value={age} onChange={(e) => setAge(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-brand-red">
-                <option value="">Pitcher&apos;s Age *</option>
-                {Array.from({ length: 14 }, (_, i) => i + 9).map((a) => (
-                  <option key={a} value={a}>{a === 22 ? "22+" : a}</option>
-                ))}
-              </select>
-              <select value={source} onChange={(e) => setSource(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:border-brand-red">
-                <option value="">How did you hear about us? (optional)</option>
-                <option>Google</option>
-                <option>Instagram</option>
-                <option>Coach referral</option>
-                <option>Friend</option>
-                <option>Other</option>
-              </select>
               <button
                 onClick={submitLead}
-                disabled={!firstName.trim() || !email.includes("@") || !age || submitting}
+                disabled={!email.includes("@") || submitting}
                 className="w-full py-3 rounded-xl bg-brand-red text-white font-bold hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {submitting ? "Saving..." : "View My Free Report \u2192"}
+                {submitting ? "Unlocking..." : "Unlock My Full Report \u2192"}
               </button>
+              <p className="text-[11px] text-white/30 text-center leading-relaxed">
+                We send the report recap plus coaching tips from Coach Grady. Unsubscribe anytime.
+              </p>
             </div>
           </div>
         )}
