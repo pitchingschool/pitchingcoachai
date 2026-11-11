@@ -48,6 +48,8 @@ const GRADE_COLORS: Record<string, string> = {
   orange: COLORS.orange,
   red: COLORS.red,
   injury: COLORS.injury,
+  // Neutral badge for phases with nothing measured
+  muted: "#9ca3af",
 };
 
 // ============================================================

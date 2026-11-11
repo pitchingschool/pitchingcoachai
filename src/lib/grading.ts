@@ -542,12 +542,15 @@ const METRIC_DEFS: MetricDef[] = [
     phase: "deceleration",
     unit: "",
     weight: 1.5,
+    // The metric is a PERCENT of height (biomechanics multiplies by 100).
+    // These thresholds were written as fractions, so every finish graded F
+    // no matter how balanced; scaled to match the metric's actual unit.
     thresholds: {
-      "12u": { lo: 0, hi: 0.20 },
-      "14u": { lo: 0, hi: 0.18 },
-      hs: { lo: 0, hi: 0.15 },
-      college: { lo: 0, hi: 0.12 },
-      pro: { lo: 0, hi: 0.10 },
+      "12u": { lo: 0, hi: 20 },
+      "14u": { lo: 0, hi: 18 },
+      hs: { lo: 0, hi: 15 },
+      college: { lo: 0, hi: 12 },
+      pro: { lo: 0, hi: 10 },
     },
     explanation: {
       "A+": "Perfectly balanced finish. You end in a fielding-ready position with great body control.",
@@ -750,6 +753,7 @@ export function gradeAllMetrics(
       grade,
       color,
       score: hasData ? score : 0,
+      hasData,
       metrics: phaseMetrics,
     };
   });

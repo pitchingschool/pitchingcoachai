@@ -33,7 +33,14 @@ export default function PhaseTabs({
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
       {phaseGrades.map((pg) => {
         const isActive = pg.phase === activePhase;
-        const colorClass = isActive ? ACTIVE_BG[pg.color] : COLOR_BG[pg.color];
+        const noData = pg.hasData === false;
+        const colorClass = noData
+          ? isActive
+            ? "bg-white/20 border-white/30 text-white"
+            : "bg-white/5 border-white/10 text-white/40"
+          : isActive
+            ? ACTIVE_BG[pg.color]
+            : COLOR_BG[pg.color];
         return (
           <button
             key={pg.phase}
@@ -41,7 +48,7 @@ export default function PhaseTabs({
             className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-bold transition-all ${colorClass}`}
           >
             <span className="mr-1.5">{PHASE_SHORT_LABELS[pg.phase]}</span>
-            <span className="opacity-80">{pg.grade}</span>
+            <span className="opacity-80">{noData ? "n/a" : pg.grade}</span>
           </button>
         );
       })}

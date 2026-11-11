@@ -186,6 +186,10 @@ export interface PhaseGrade {
   grade: LetterGrade;
   color: GradeColor;
   score: number; // 0-100
+  /** False when no weighted metric in this phase could be measured: the
+   *  grade/color are placeholders the UI must show as "not measured",
+   *  never as a letter grade. Optional: older stored rows lack it. */
+  hasData?: boolean;
   metrics: MetricGrade[];
 }
 

@@ -748,7 +748,8 @@ export function detectPhases(
     footStrikeConfidence = clamp(
       Math.round(
         (fsMethod === "contact-fusion" ? 45 : fsMethod === "ground-arrival" ? 30 : fsMethod === "speed-quiet" ? 25 : 10) +
-          (releaseIdx - footStrikeIdx >= 2 && releaseIdx - footStrikeIdx <= 5 * scale ? 15 : 5) +
+          // Gap scored against the anchor the detection actually used
+          (fsRelease - footStrikeIdx >= 2 && fsRelease - footStrikeIdx <= 5 * scale ? 15 : 5) +
           vis * 40
       ),
       0,

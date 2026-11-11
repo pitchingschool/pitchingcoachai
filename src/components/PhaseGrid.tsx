@@ -47,10 +47,11 @@ export default function PhaseGrid({
       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {PHASE_ORDER.map((phase) => {
           const pg = gradeMap.get(phase);
+          const noData = pg?.hasData === false;
           const isActive = phase === activePhase;
           const capture = phaseFrameCaptures[phase];
-          const borderColor = pg ? GRADE_BORDER[pg.color] || "border-white/10" : "border-white/10";
-          const textColor = pg ? GRADE_TEXT[pg.color] || "text-white" : "text-white";
+          const borderColor = pg && !noData ? GRADE_BORDER[pg.color] || "border-white/10" : "border-white/10";
+          const textColor = pg && !noData ? GRADE_TEXT[pg.color] || "text-white" : "text-white/40";
 
           return (
             <button
@@ -80,7 +81,7 @@ export default function PhaseGrid({
                   </span>
                   {pg && (
                     <span className={`text-sm font-black ${textColor}`}>
-                      {pg.grade}
+                      {noData ? "n/a" : pg.grade}
                     </span>
                   )}
                 </div>

@@ -99,19 +99,22 @@ export default function OverallGradeCard({
 
       {/* Phase grades row */}
       <div className="grid grid-cols-5 gap-1.5 mb-4">
-        {grade.phaseGrades.map((pg) => (
-          <div
-            key={pg.phase}
-            className={`${GRADE_BG[pg.color] || "bg-white/5"} rounded-lg py-2 text-center`}
-          >
-            <div className="text-[10px] text-white/40 uppercase tracking-wider">
-              {PHASE_SHORT_LABELS[pg.phase]}
+        {grade.phaseGrades.map((pg) => {
+          const noData = pg.hasData === false;
+          return (
+            <div
+              key={pg.phase}
+              className={`${noData ? "bg-white/5" : GRADE_BG[pg.color] || "bg-white/5"} rounded-lg py-2 text-center`}
+            >
+              <div className="text-[10px] text-white/40 uppercase tracking-wider">
+                {PHASE_SHORT_LABELS[pg.phase]}
+              </div>
+              <div className={`text-lg font-black ${noData ? "text-white/30" : GRADE_TEXT[pg.color] || "text-white"}`}>
+                {noData ? "n/a" : pg.grade}
+              </div>
             </div>
-            <div className={`text-lg font-black ${GRADE_TEXT[pg.color] || "text-white"}`}>
-              {pg.grade}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <p className="text-sm text-white/60 max-w-md mx-auto leading-relaxed">

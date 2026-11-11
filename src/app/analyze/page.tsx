@@ -105,7 +105,7 @@ export default function AnalyzePage() {
         metricsFull[m.metricKey] = {
           value: m.value,
           unit: m.unit,
-          grade: m.info ? "info" : m.measured ? m.grade : "not_measured",
+          grade: !m.measured ? "not_measured" : m.info ? "info" : m.grade,
           measured: m.measured,
           confidence: r.metricConfidence[m.metricKey] ?? 0,
         };
@@ -128,6 +128,9 @@ export default function AnalyzePage() {
       phaseGrades,
       metricsFull,
       framingWarning: r.framingWarning,
+      armTrackingWarning: r.armTrackingWarning,
+      handMismatch: r.handMismatch,
+      detectedHand: r.detectedHand,
     };
   }, []);
 
@@ -280,8 +283,9 @@ export default function AnalyzePage() {
         phases: currentPhases,
       });
 
-      // Default to worst-scoring phase tab
+      // Default to the worst-scoring phase that actually has measurements
       const worstPhase = [...analysisResult.grade.phaseGrades]
+        .filter((pg) => pg.hasData !== false)
         .sort((a, b) => a.score - b.score)[0];
       setActivePhase(worstPhase?.phase || "footStrike");
 
@@ -765,11 +769,11 @@ export default function AnalyzePage() {
             {/* CTA, contextual based on findings */}
             {(() => {
               const weakPhases = result.grade.phaseGrades
-                .filter((pg) => pg.grade === "C" || pg.grade === "D")
+                .filter((pg) => pg.hasData !== false && (pg.grade === "C" || pg.grade === "D"))
                 .map((pg) => PHASE_LABELS[pg.phase]);
               const weakMetrics = result.grade.phaseGrades
                 .flatMap((pg) => pg.metrics)
-                .filter((m) => m.color === "red" || m.color === "yellow");
+                .filter((m) => m.measured && !m.info && (m.color === "red" || m.color === "yellow"));
               const issueCount = weakMetrics.length;
 
               return (

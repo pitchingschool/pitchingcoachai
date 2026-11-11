@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
       firstName, email, phone, age, source, overallScore, metrics,
       throwingHand, declaredHand, level, appVersion,
       phaseFrames, phaseGrades, metricsFull, framingWarning,
+      armTrackingWarning, handMismatch, detectedHand,
     } = body;
 
     // Email is the only hard requirement: the gate asks for one field.
@@ -66,9 +67,8 @@ export async function POST(req: NextRequest) {
       arm_slot: metrics?.release?.armSlot ?? null,
       lead_knee_extension: metrics?.release?.leadLegExtension ?? null,
     };
-    let analysis = await supabaseInsert("analyses", {
-      ...legacyColumns,
-      // New measurement-model columns
+    const modelColumns = {
+      // Measurement-model columns (first migration)
       throwing_hand: throwingHand === "left" || throwingHand === "right" ? throwingHand : null,
       declared_hand: declaredHand === "left" || declaredHand === "right" ? declaredHand : null,
       level: typeof level === "string" ? level : null,
@@ -77,7 +77,19 @@ export async function POST(req: NextRequest) {
       phase_grades: phaseGrades ?? null,
       metrics_full: metricsFull ?? null,
       framing_warning: typeof framingWarning === "boolean" ? framingWarning : null,
-    });
+    };
+    const auditColumns = {
+      // Audit-fix columns (second migration); tiered retry below keeps
+      // every lead safe if that migration has not been applied yet.
+      arm_tracking_warning: typeof armTrackingWarning === "boolean" ? armTrackingWarning : null,
+      hand_mismatch: typeof handMismatch === "boolean" ? handMismatch : null,
+      detected_hand: detectedHand === "left" || detectedHand === "right" ? detectedHand : null,
+    };
+    let analysis = await supabaseInsert("analyses", { ...legacyColumns, ...modelColumns, ...auditColumns });
+    if (!analysis) {
+      console.warn("[Lead API] Insert with audit columns failed (migration pending?), retrying without them");
+      analysis = await supabaseInsert("analyses", { ...legacyColumns, ...modelColumns });
+    }
     if (!analysis) {
       console.warn("[Lead API] Full analysis insert failed (migration pending?), retrying with legacy columns");
       analysis = await supabaseInsert("analyses", legacyColumns);

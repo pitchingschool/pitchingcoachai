@@ -33,9 +33,9 @@ function SampleReport() {
       {/* Phase grades row */}
       <div className="grid grid-cols-4 gap-2 mb-4">
         {[
-          { phase: "Drift", grade: "B", score: 82 },
+          { phase: "Leg Lift", grade: "B", score: 82 },
           { phase: "FFS", grade: "A", score: 91 },
-          { phase: "MER", grade: "C", score: 74 },
+          { phase: "Layback", grade: "C", score: 74 },
           { phase: "Release", grade: "B", score: 86 },
         ].map((p) => (
           <div key={p.phase} className="bg-white/5 rounded-lg py-2 text-center">
@@ -210,11 +210,6 @@ export default function HomePage() {
               color: "border-purple-500/30",
             },
             {
-              phase: "Drift",
-              desc: "Hip lead and forward momentum initiation toward the plate",
-              color: "border-blue-500/30",
-            },
-            {
               phase: "Foot Strike",
               desc: "Stride length, arm timing, and hip-shoulder separation at landing",
               color: "border-green-500/30",
@@ -228,6 +223,11 @@ export default function HomePage() {
               phase: "Release",
               desc: "Trunk flexion, lead leg brace, and arm slot at ball release",
               color: "border-red-500/30",
+            },
+            {
+              phase: "Follow-Through",
+              desc: "Deceleration path, finish balance, and how the arm slows down",
+              color: "border-blue-500/30",
             },
           ].map((p) => (
             <div key={p.phase} className={`bg-white/[0.03] border ${p.color} rounded-xl p-5`}>
@@ -259,7 +259,7 @@ export default function HomePage() {
             20 years of coaching experience. 100+ active pitchers from 10U travel ball
             through college programs. Based in North Canton, OH. This tool is built
             on the same methodology Mike uses in the facility every day, focused
-            on the drift move, foot strike timing, max external rotation, and release
+            on the leg lift, foot strike timing, max layback, and release
             mechanics that actually matter for velocity and arm health.
           </p>
           <p className="text-xs text-white/30">

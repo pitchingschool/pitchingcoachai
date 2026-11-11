@@ -296,9 +296,12 @@ const DRILL_MAP: Record<string, DrillEntry[]> = {
 export function prescribeDrills(metricGrades: MetricGrade[]): DrillPrescription[] {
   const drills: DrillPrescription[] = [];
 
-  // Filter to metrics that need work (C, D, or F) and have weight > 0
+  // Filter to MEASURED metrics that need work (C, D, or F). A metric that
+  // could not be measured carries a placeholder "C" and must never earn a
+  // corrective drill; info-only metrics have no target either.
   const needsWork = metricGrades
     .filter((m) => {
+      if (m.measured === false || m.info === true) return false;
       const isWeak = m.grade === "C" || m.grade === "D" || m.grade === "F";
       const isInjury = m.injuryFlag;
       return isWeak || isInjury;

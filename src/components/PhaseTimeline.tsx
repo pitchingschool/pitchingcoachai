@@ -116,8 +116,8 @@ export default function PhaseTimeline({
                   {PHASE_SHORT_LABELS[name]}
                 </span>
 
-                {/* Grade badge */}
-                {pg && (
+                {/* Grade badge (omitted when the phase has no measurements) */}
+                {pg && pg.hasData !== false && (
                   <span
                     className="text-[10px] font-bold leading-none px-1.5 py-0.5 rounded"
                     style={{

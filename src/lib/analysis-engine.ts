@@ -722,13 +722,14 @@ export async function runAnalysis(
       const pg = phaseGrades.find((p) => p.phase === phaseKey);
       const phaseMetricGrades = metricGrades.filter((m) => m.phase === phaseKey);
 
+      const noData = pg?.hasData === false;
       phaseFrameCaptures[phaseKey] = capturePhaseFrame(
         video,
         frame,
         phaseKey,
         PHASE_LABELS[phaseKey],
-        pg?.grade || "C",
-        pg?.color || "yellow",
+        noData ? "n/a" : pg?.grade || "C",
+        noData ? "muted" : pg?.color || "yellow",
         phaseMetricGrades,
         effectiveHand
       );

@@ -106,16 +106,25 @@ function trunkFromVertical(frame: ValidFrame | undefined): number | null {
  * about 80% of standing height (1 / 0.8 = 1.25).
  */
 function estimateHeightGlobal(frames: ValidFrame[]): number | null {
+  // y must be inside the image: MediaPipe extrapolates off-screen
+  // landmarks (feet below the bottom edge) and those hallucinated
+  // positions would inflate the extent.
+  const inFrameY = (p: Point2D | null) => p !== null && p.y >= 0 && p.y <= 1;
   const extents: number[] = [];
   for (const f of frames) {
-    const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
-    const ankleMid = mid(kp(f, "leftAnkle"), kp(f, "rightAnkle"));
-    const d = dist(shoulderMid, ankleMid);
+    const ls = kp(f, "leftShoulder");
+    const rs = kp(f, "rightShoulder");
+    const la = kp(f, "leftAnkle");
+    const ra = kp(f, "rightAnkle");
+    if (!inFrameY(ls) || !inFrameY(rs) || !inFrameY(la) || !inFrameY(ra)) continue;
+    const d = dist(mid(ls, rs), mid(la, ra));
     if (d !== null && d > 1e-4) extents.push(d);
   }
   if (extents.length < 3) return null;
   extents.sort((a, b) => a - b);
-  const p90 = extents[Math.min(extents.length - 1, Math.floor(extents.length * 0.9))];
+  // 90th percentile, never the single largest extent: one tracking
+  // teleport must not become the height.
+  const p90 = extents[Math.max(0, Math.min(extents.length - 2, Math.floor(extents.length * 0.9)))];
   return p90 * 1.25;
 }
 
@@ -298,7 +307,10 @@ function calcFootStrikeMetrics(
     leadAnkle && backAnkle && height
       ? round2(Math.abs(leadAnkle.x - backAnkle.x) / height)
       : null;
-  C["footStrike.strideLength"] = conf(f, [S.leadAnkle, S.backAnkle, "leftShoulder", "rightShoulder"]);
+  // Confidence covers what this frame's measurement actually used (the
+  // two ankles). Height is a whole-clip estimate: when it fails, the
+  // value is already null and reported not measured.
+  C["footStrike.strideLength"] = conf(f, [S.leadAnkle, S.backAnkle]);
 
   // Hip-shoulder separation: WORLD landmarks only (transverse plane).
   // The old 2D hip-line vs shoulder-line read is meaningless in a side
@@ -665,6 +677,9 @@ export function calculateAllMetricsWithConfidence(
     metrics.mer.shoulderAbduction = null;
     metrics.mer.elbowHeight = null;
     metrics.release.armSlot = null;
+    // The deceleration wrist metrics read the same unverified arm.
+    metrics.deceleration.followThroughLength = null;
+    metrics.deceleration.armDecelerationPath = null;
     for (const key of [
       "footStrike.elbowAngleAtFS",
       "footStrike.forearmVerticalAngle",
@@ -674,6 +689,8 @@ export function calculateAllMetricsWithConfidence(
       "mer.shoulderAbduction",
       "mer.elbowHeight",
       "release.armSlot",
+      "deceleration.followThroughLength",
+      "deceleration.armDecelerationPath",
     ]) {
       C[key] = 0;
     }

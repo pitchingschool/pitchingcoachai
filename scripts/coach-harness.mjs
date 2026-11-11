@@ -36,7 +36,7 @@ mkdirSync(outDir, { recursive: true });
 const entry = path.join(outDir, "entry.ts");
 writeFileSync(
   entry,
-  `export { detectPhases } from "../src/lib/phase-detector";
+  `export { detectPhases, repairSideSwaps } from "../src/lib/phase-detector";
 export { calculateAllMetricsWithConfidence } from "../src/lib/biomechanics";
 export { gradeAllMetrics } from "../src/lib/grading";
 export { resolveEffectiveHand } from "../src/lib/side-resolution";
@@ -114,6 +114,9 @@ for (const [clipName, clip] of Object.entries(labels.clips)) {
   const declared = clip.throwingHand === "left" || clip.throwingHand === "right"
     ? clip.throwingHand
     : (poses.throwingHand ?? "right");
+  // Repair leg identity swaps BEFORE the cross-check, exactly as the app
+  // does (idempotent; detection and measurement repair the same stream).
+  engine.repairSideSwaps(frames);
   const side = engine.resolveEffectiveHand(frames, declared);
   const hand = declared;
 
