@@ -24,7 +24,7 @@ import {
   LM_NAMES,
   PHASE_LABELS,
 } from "./types";
-import { detectPhases } from "./phase-detector";
+import { detectPhases, repairSideSwaps } from "./phase-detector";
 import { calculateAllMetricsWithConfidence } from "./biomechanics";
 import { gradeAllMetrics } from "./grading";
 import { resolveEffectiveHand } from "./side-resolution";
@@ -626,14 +626,19 @@ export async function runAnalysis(
     targetFPS: probedFPS,
   });
 
-  // Stage 1.5: Resolve the EFFECTIVE hand from the motion itself.
-  // Guards against both a wrong selection and MediaPipe label mirroring.
-  // All measurement uses the effective hand; a mismatch is surfaced as a
-  // warning, never silently ignored.
+  // Stage 1.5: THE DECLARED HAND WINS. The person who uploaded the video
+  // knows which hand the pitcher throws with; the motion detector does
+  // not get to overrule them (it measured the glove arm when it tried).
+  // Detection still runs as a cross-check: a mismatch raises a visible
+  // warning so a wrong SELECTION gets caught, but every measurement uses
+  // the declared hand. Leg-swap repair runs first so the detector's
+  // ankle-travel signal reads repaired legs.
+  repairSideSwaps(frames);
   const side = resolveEffectiveHand(frames, throwingHand);
-  const effectiveHand = side.effectiveHand;
+  const effectiveHand = throwingHand;
+  const detectedHand = side.effectiveHand;
   if (side.mismatchWithDeclared) {
-    console.warn(`[Pipeline] Hand mismatch: declared ${throwingHand}, motion says ${effectiveHand}. ${side.detail}`);
+    console.warn(`[Pipeline] Hand cross-check disagrees: declared ${throwingHand}, motion reads ${detectedHand}. Measuring the declared ${throwingHand} arm. ${side.detail}`);
   }
 
   // Stage 1.6: Framing check. A pitcher much smaller than 1/3 of the frame
@@ -667,18 +672,27 @@ export async function runAnalysis(
   const phases = detectPhases(frames, effectiveHand);
   onProgress("Identifying pitching phases...", 100);
 
-  // Stage 3: Calculate metrics
+  // Stage 3: Calculate metrics (aspect-corrected so horizontal and
+  // vertical measurements share one unit; see biomechanics.ts)
   onProgress("Measuring your mechanics...", 0);
-  const { metrics, confidence: metricConfidence } = calculateAllMetricsWithConfidence(
+  const aspectRatio =
+    video.videoWidth > 0 && video.videoHeight > 0
+      ? video.videoWidth / video.videoHeight
+      : 1;
+  const { metrics, confidence: metricConfidence, armValid } = calculateAllMetricsWithConfidence(
     frames,
     phases,
-    effectiveHand
+    effectiveHand,
+    aspectRatio
   );
+  if (!armValid) {
+    console.warn("[Pipeline] Arm tripwire: throwing-arm layback never passed vertical; arm metrics excluded from the score.");
+  }
   onProgress("Measuring your mechanics...", 100);
 
-  // Stage 4: Grade everything
+  // Stage 4: Grade everything (low-visibility metrics become "not measured")
   onProgress("Grading your delivery...", 0);
-  const { metricGrades, phaseGrades, overall } = gradeAllMetrics(metrics, level);
+  const { metricGrades, phaseGrades, overall } = gradeAllMetrics(metrics, level, metricConfidence);
   onProgress("Grading your delivery...", 100);
 
   // Stage 5: Prescribe drills
@@ -686,7 +700,9 @@ export async function runAnalysis(
 
   // Stage 6: Capture freeze frames at each phase
   onProgress("Capturing key positions...", 0);
-  const phaseKeys: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
+  // Stride ("drift") is no longer part of the report: Coach Grady's call,
+  // only front foot strike matters. It stays detected internally.
+  const phaseKeys: PhaseName[] = ["legLift", "footStrike", "mer", "release", "deceleration"];
   const phaseFrameCaptures: Record<string, string> = {};
 
   for (let i = 0; i < phaseKeys.length; i++) {
@@ -747,7 +763,9 @@ export async function runAnalysis(
     athleteLevel: level,
     throwingHand,
     effectiveHand,
+    detectedHand,
     handMismatch: side.mismatchWithDeclared,
+    armTrackingWarning: !armValid,
     framingWarning,
     bodyHeightFraction,
     appVersion: APP_VERSION,

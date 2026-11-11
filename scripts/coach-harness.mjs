@@ -109,15 +109,22 @@ for (const [clipName, clip] of Object.entries(labels.clips)) {
   const frames = poses.frames;
   const labelFps = clip.fps ?? 30;
 
-  // Resolve hand exactly as the app does
+  // Hand policy matches the app: the DECLARED hand always wins; the
+  // motion detector is a cross-check that can only warn.
   const declared = clip.throwingHand === "left" || clip.throwingHand === "right"
     ? clip.throwingHand
     : (poses.throwingHand ?? "right");
   const side = engine.resolveEffectiveHand(frames, declared);
-  const hand = side.effectiveHand;
+  const hand = declared;
+
+  // Aspect ratio from the pose export so measurement uses one unit on
+  // both axes (the app passes video width / height the same way).
+  const aspect = poses.videoWidth > 0 && poses.videoHeight > 0
+    ? poses.videoWidth / poses.videoHeight
+    : 1;
 
   const phases = engine.detectPhases(frames, hand);
-  const { metrics } = engine.calculateAllMetricsWithConfidence(frames, phases, hand);
+  const { metrics } = engine.calculateAllMetricsWithConfidence(frames, phases, hand, aspect);
 
   // Convert a detected frame (index into the extracted stream) to the
   // label frame numbering (time x label fps) via its timestamp.
@@ -128,7 +135,7 @@ for (const [clipName, clip] of Object.entries(labels.clips)) {
 
   console.log(`\n=== ${clipName} ===`);
   console.log(`athlete: ${clip.athlete}`);
-  console.log(`hand: declared ${declared}, effective ${hand} (${side.detail})`);
+  console.log(`hand: declared ${declared} (wins), detector reads ${side.effectiveHand} (${side.detail})`);
   console.log(`frames in pose stream: ${frames.length} @ ~${poses.estimatedFPS ?? "?"}fps extraction`);
 
   const rows = [];
@@ -136,6 +143,7 @@ for (const [clipName, clip] of Object.entries(labels.clips)) {
 
   // ── Phases ──
   const phaseMap = {
+    legLift: phases.legLift.frameIndex,
     footStrike: phases.footStrike.frameIndex,
     maxLayback: phases.mer.frameIndex,
     release: phases.release.frameIndex,

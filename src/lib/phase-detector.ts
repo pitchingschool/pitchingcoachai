@@ -567,18 +567,33 @@ export function detectPhases(
   // The follow-through also shows a fully extended arm, so take the
   // EARLIEST frame that reaches essentially-max extension: that is the
   // moment the ball leaves; everything after is deceleration.
+  // Speed gate: the ball leaves the hand DURING the speed burst, so an
+  // early extended-arm frame with a quiet wrist (max layback, or a long
+  // extended hold before the whip) can never win release. Without this
+  // gate the plateau rule picked frames at or before true layback.
+  // The UNGATED pick is kept separately: foot-strike detection was
+  // calibrated against it, and its window quantiles are sensitive to the
+  // release frame, so FS keeps its original anchor.
+  let releaseIdxUngated = releaseIdx;
   if (releaseIdx !== -1) {
+    const speedGate = anchorPeak * 0.5;
+    let ungated = -1;
+    let gated = -1;
     for (let i = relLo; i <= relHi; i++) {
       const e = extAt[i];
-      if (e !== null && e >= bestExt - 0.015) {
-        releaseIdx = i;
-        break;
-      }
+      if (e === null || e < bestExt - 0.015) continue;
+      if (ungated === -1) ungated = i;
+      if (gated === -1 && wristSm[i] >= speedGate) gated = i;
+      if (ungated !== -1 && gated !== -1) break;
     }
+    releaseIdxUngated = ungated !== -1 ? ungated : releaseIdx;
+    // A gated pick sitting on the window's far edge is the follow-through
+    // boundary, not a trustworthy release: keep the ungated pick there.
+    releaseIdx = gated !== -1 && gated !== relHi ? gated : releaseIdxUngated;
   }
 
   let releaseMethod = "extension";
-  if (releaseIdx === -1 || releaseIdx === relLo || releaseIdx === relHi) {
+  if (releaseIdxUngated === -1 || releaseIdxUngated === relLo || releaseIdxUngated === relHi) {
     // Extension landed on a window edge (or found nothing): decay fallback.
     releaseMethod = "speed-decay";
     releaseIdx = Math.min(anchorIdx + 1, n - 1);
@@ -589,6 +604,7 @@ export function detectPhases(
       }
       releaseIdx = i;
     }
+    releaseIdxUngated = releaseIdx;
   }
 
   let releaseConfidence: number;
@@ -611,8 +627,12 @@ export function detectPhases(
   //    Method A: contact fusion (heel/toe/ankle arrest + flattening).
   //    Method B fallback: ground-arrival; then speed-quiet; then offset.
   // ==========================================================
-  const fsLo = Math.max(1, releaseIdx - 5 * scale);
-  const fsHi = Math.max(fsLo + 1, releaseIdx - 1);
+  // All foot-strike work anchors on the UNGATED release pick: the contact
+  // fusion constants were calibrated against it and its window statistics
+  // shift with the anchor frame.
+  const fsRelease = releaseMethod === "extension" ? releaseIdxUngated : releaseIdx;
+  const fsLo = Math.max(1, fsRelease - 5 * scale);
+  const fsHi = Math.max(fsLo + 1, fsRelease - 1);
 
   const ankleSpeed = speedSeries(frames, S.leadAnkle);
   const ankleSm = smoothSeries(ankleSpeed, 1.5);
@@ -638,8 +658,8 @@ export function detectPhases(
   // the foot that actually hit the ground). Validated 10/10 within 2
   // frames on the labeled clip set, including oblique views.
   {
-    const idx = detectFootStrikeContact(frames, S, releaseIdx, throwDirSign);
-    if (idx >= 1 && idx < releaseIdx) {
+    const idx = detectFootStrikeContact(frames, S, fsRelease, throwDirSign);
+    if (idx >= 1 && idx < fsRelease) {
       footStrikeIdx = idx;
       fsMethod = "contact-fusion";
     }
@@ -718,7 +738,7 @@ export function detectPhases(
 
   // Last resort: a fixed offset back from release
   if (footStrikeIdx === -1) {
-    footStrikeIdx = Math.max(1, releaseIdx - 2 * scale);
+    footStrikeIdx = Math.max(1, fsRelease - 2 * scale);
     fsMethod = "fallback-offset";
   }
 
@@ -785,23 +805,56 @@ export function detectPhases(
       0,
       100
     );
+    // A peak layback under 90 means the tracked forearm never even passed
+    // vertical: physically impossible for a real throw, so the tracked arm
+    // is almost certainly wrong (or the pose stream is garbage here).
+    if (measured && bestLayback < 90) laybackConfidence = Math.min(laybackConfidence, 20);
   }
 
   // ==========================================================
   // 4. LEG LIFT, peak lead-knee height before foot strike
   // ==========================================================
+  // Smoothed series + plateau midpoint: a raw single-frame argmax lands
+  // on tracking noise, and a long high hold (common in real deliveries)
+  // has a flat top where "first highest frame" is arbitrary. The midpoint
+  // of the near-peak plateau matches how a coach reads the apex.
   let legLiftIdx = 0;
   let bestLift = -Infinity;
-  for (let i = 0; i < footStrikeIdx; i++) {
-    const hip = kpAt(frames[i], S.leadHip);
-    const knee = kpAt(frames[i], S.leadKnee);
-    if (!hip || !knee) continue;
-    const lift = hip.y - knee.y; // positive = knee above hip
-    if (lift > bestLift) {
-      bestLift = lift;
-      legLiftIdx = i;
+  let liftPlateau = 0;
+  {
+    const liftRaw: (number | null)[] = [];
+    for (let i = 0; i < footStrikeIdx; i++) {
+      const hip = kpAt(frames[i], S.leadHip);
+      const knee = kpAt(frames[i], S.leadKnee);
+      liftRaw.push(hip && knee ? hip.y - knee.y : null); // positive = knee above hip
+    }
+    if (liftRaw.some((v) => v !== null)) {
+      const liftSm = smoothSeries(liftRaw, 2);
+      let lowest = Infinity;
+      for (let i = 0; i < liftRaw.length; i++) {
+        if (liftRaw[i] === null) continue;
+        if (liftSm[i] > bestLift) {
+          bestLift = liftSm[i];
+          legLiftIdx = i;
+        }
+        lowest = Math.min(lowest, liftSm[i]);
+      }
+      const range = bestLift - lowest;
+      if (range > 1e-6) {
+        const tol = 0.06 * range;
+        let a = legLiftIdx;
+        let b = legLiftIdx;
+        while (a > 0 && liftRaw[a - 1] !== null && liftSm[a - 1] >= bestLift - tol) a--;
+        while (b < liftRaw.length - 1 && liftRaw[b + 1] !== null && liftSm[b + 1] >= bestLift - tol) b++;
+        liftPlateau = b - a;
+        legLiftIdx = Math.round((a + b) / 2);
+      }
     }
   }
+  // A "peak" where the knee never rises above the hip means this leg never
+  // lifted: wrong leg selected, or an unusable view. Keep the frame (the
+  // report needs one) but the confidence must say the pick is untrusted.
+  const liftValid = Number.isFinite(bestLift) && bestLift > 0;
 
   let legLiftConfidence: number;
   {
@@ -809,12 +862,13 @@ export function detectPhases(
     legLiftConfidence = clamp(
       Math.round(
         (bestLift > 0.1 ? 35 : bestLift > 0.04 ? 20 : 8) +
-          (legLiftIdx < footStrikeIdx ? 15 : 0) +
+          (liftPlateau >= 2 ? 15 : 5) +
           vis * 40
       ),
       0,
       100
     );
+    if (!liftValid) legLiftConfidence = Math.min(legLiftConfidence, 15);
   }
 
   // ==========================================================
@@ -923,6 +977,7 @@ export function detectPhases(
     mer: mk(mer, laybackConfidence),
     release: mk(rel, releaseConfidence),
     deceleration: mk(dec, decelConfidence),
+    throwDirSign,
   };
 }
 

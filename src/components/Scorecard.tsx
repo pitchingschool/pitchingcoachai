@@ -46,7 +46,7 @@ export default function Scorecard({ metrics }: { metrics: MetricGrade[] }) {
     <div className="space-y-2">
       {metrics.map((m) => {
         const isExpanded = expanded === m.metricKey;
-        const isInfoOnly = m.metricKey === "release.armSlot";
+        const isInfoOnly = m.info === true || m.metricKey === "release.armSlot";
         const notMeasured = m.measured === false;
         const barWidth = GRADE_SCORES[m.grade] ?? 50;
 

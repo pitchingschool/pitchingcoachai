@@ -67,6 +67,17 @@ function wristSpeedSeries(frames: ValidFrame[], key: string): (number | null)[] 
     }
     out.push(Math.sqrt((b.x - a.x) ** 2 + (b.y - a.y) ** 2));
   }
+  // Single-frame spikes towering over BOTH neighbors are tracking
+  // teleports, not motion. Without this, one glove-wrist jump can
+  // out-score the real throw burst and flip the resolved hand.
+  for (let i = 1; i < out.length - 1; i++) {
+    const v = out[i];
+    const p = out[i - 1];
+    const n = out[i + 1];
+    if (v !== null && p !== null && n !== null && v > 0.01 && v > 3 * p && v > 3 * n) {
+      out[i] = null;
+    }
+  }
   return out;
 }
 

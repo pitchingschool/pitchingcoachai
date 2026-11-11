@@ -97,13 +97,26 @@ function trunkFromVertical(frame: ValidFrame | undefined): number | null {
   return Math.abs(-90 - a);
 }
 
-/** Pitcher height estimate in normalized units; null when unmeasurable. */
-function estimateHeight(frame: ValidFrame | undefined): number | null {
-  const shoulderMid = mid(kp(frame, "leftShoulder"), kp(frame, "rightShoulder"));
-  const ankleMid = mid(kp(frame, "leftAnkle"), kp(frame, "rightAnkle"));
-  const torsoToFeet = dist(shoulderMid, ankleMid);
-  if (torsoToFeet === null || torsoToFeet < 1e-4) return null;
-  return torsoToFeet * 1.25;
+/**
+ * Pitcher height estimate in normalized Y units; null when unmeasurable.
+ * Uses the 90th percentile of per-frame shoulder-to-ankle extent across
+ * the WHOLE clip, so the estimate comes from standing/extended frames
+ * instead of the crouched frame of whatever phase is being measured.
+ * The 1.25 factor is anatomy, not a correction: shoulder-to-ankle spans
+ * about 80% of standing height (1 / 0.8 = 1.25).
+ */
+function estimateHeightGlobal(frames: ValidFrame[]): number | null {
+  const extents: number[] = [];
+  for (const f of frames) {
+    const shoulderMid = mid(kp(f, "leftShoulder"), kp(f, "rightShoulder"));
+    const ankleMid = mid(kp(f, "leftAnkle"), kp(f, "rightAnkle"));
+    const d = dist(shoulderMid, ankleMid);
+    if (d !== null && d > 1e-4) extents.push(d);
+  }
+  if (extents.length < 3) return null;
+  extents.sort((a, b) => a - b);
+  const p90 = extents[Math.min(extents.length - 1, Math.floor(extents.length * 0.9))];
+  return p90 * 1.25;
 }
 
 // ============================================================
@@ -190,11 +203,11 @@ function calcDriftMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   S: ReturnType<typeof getSideKeys>,
-  C: ConfidenceMap
+  C: ConfidenceMap,
+  height: number | null
 ): DriftMetrics {
   const dIdx = phases.drift.frameIndex;
   const f = frames[dIdx];
-  const height = estimateHeight(f);
 
   const hipMid = mid(kp(f, S.leadHip), kp(f, S.backHip));
   const backAnkle = kp(f, S.backAnkle);
@@ -272,11 +285,11 @@ function calcFootStrikeMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   S: ReturnType<typeof getSideKeys>,
-  C: ConfidenceMap
+  C: ConfidenceMap,
+  height: number | null
 ): FootStrikeMetrics {
   const fsIdx = phases.footStrike.frameIndex;
   const f = frames[fsIdx];
-  const height = estimateHeight(f);
 
   // Stride length (side view, image plane)
   const leadAnkle = kp(f, S.leadAnkle);
@@ -448,7 +461,8 @@ function calcReleaseMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   S: ReturnType<typeof getSideKeys>,
-  C: ConfidenceMap
+  C: ConfidenceMap,
+  height: number | null
 ): ReleaseMetrics {
   const f = frames[phases.release.frameIndex];
   const fsFrame = frames[phases.footStrike.frameIndex];
@@ -467,7 +481,6 @@ function calcReleaseMetrics(
   C["release.releasePointHeight"] = conf(f, ["nose", S.throwWrist]);
 
   const backAnkle = kp(f, S.backAnkle);
-  const height = estimateHeight(f);
   const extension =
     wrist && backAnkle && height ? round2(Math.abs(wrist.x - backAnkle.x) / height) : null;
   C["release.extension"] = conf(f, [S.throwWrist, S.backAnkle]);
@@ -510,11 +523,11 @@ function calcDecelerationMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
   S: ReturnType<typeof getSideKeys>,
-  C: ConfidenceMap
+  C: ConfidenceMap,
+  height: number | null
 ): DecelerationMetrics {
   const f = frames[phases.deceleration.frameIndex];
   const relFrame = frames[phases.release.frameIndex];
-  const height = estimateHeight(f);
 
   let followThroughLength: number | null = null;
   const relWrist = kp(relFrame, S.throwWrist);
@@ -578,35 +591,102 @@ function calcDecelerationMetrics(
 export function calculateAllMetricsWithConfidence(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  throwingHand: "left" | "right" = "right"
-): { metrics: AllMetrics; confidence: Record<string, number> } {
+  throwingHand: "left" | "right" = "right",
+  /** Video width / height. 1 (or omitted) leaves coordinates untouched. */
+  aspectRatio = 1
+): { metrics: AllMetrics; confidence: Record<string, number>; armValid: boolean } {
   const S = getSideKeys(throwingHand);
   const C: ConfidenceMap = {};
 
   // Fix left/right leg identity swaps and swap-edge excursions before
   // any angle is measured; a swapped frame at a phase moment would
-  // otherwise read the WRONG leg's joints. Runs after phase detection
-  // on purpose: detection is calibrated on the raw stream.
+  // otherwise read the WRONG leg's joints. Idempotent, and detection
+  // runs the same repair, so both stages see one repaired stream.
   repairSideSwaps(frames);
 
-  const throwDirSign = resolveThrowDirection(frames, throwingHand, phases.release.frameIndex);
+  // MediaPipe normalizes x by frame WIDTH and y by frame HEIGHT. Mixing
+  // the two axes (every angle, and every horizontal distance divided by a
+  // mostly-vertical height, does exactly that) shrinks horizontal
+  // components by height/width: on 16:9 landscape a true 0.85 stride read
+  // as 0.48. Measurement therefore runs on an aspect-corrected copy
+  // (x scaled by width/height) so both axes share one unit. Detection
+  // stays on the normalized stream its calibration was built on.
+  const mFrames: ValidFrame[] =
+    aspectRatio > 0 && Math.abs(aspectRatio - 1) > 1e-3
+      ? frames.map((f) => {
+          const scaled: ValidFrame["keypoints"] = {};
+          for (const [k, p] of Object.entries(f.keypoints)) {
+            scaled[k] = { ...p, x: p.x * aspectRatio };
+          }
+          return { ...f, keypoints: scaled };
+        })
+      : frames;
+
+  // One throw direction for all measurement: the one the detector used.
+  // (Rows stored before throwDirSign existed fall back to re-deriving it.)
+  const throwDirSign =
+    phases.throwDirSign ??
+    resolveThrowDirection(frames, throwingHand, phases.release.frameIndex);
+
+  const height = estimateHeightGlobal(mFrames);
 
   const metrics: AllMetrics = {
-    legLift: calcLegLiftMetrics(frames, phases, S, C),
-    drift: calcDriftMetrics(frames, phases, S, C),
-    footStrike: calcFootStrikeMetrics(frames, phases, S, C),
-    mer: calcMERMetrics(frames, phases, S, throwDirSign, C),
-    release: calcReleaseMetrics(frames, phases, S, C),
-    deceleration: calcDecelerationMetrics(frames, phases, S, C),
+    legLift: calcLegLiftMetrics(mFrames, phases, S, C),
+    drift: calcDriftMetrics(mFrames, phases, S, C, height),
+    footStrike: calcFootStrikeMetrics(mFrames, phases, S, C, height),
+    mer: calcMERMetrics(mFrames, phases, S, throwDirSign, C),
+    release: calcReleaseMetrics(mFrames, phases, S, C, height),
+    deceleration: calcDecelerationMetrics(mFrames, phases, S, C, height),
   };
 
-  return { metrics, confidence: C };
+  // Wrong-arm tripwire: a real throw ALWAYS lays the forearm past vertical
+  // between foot strike and release. If the tracked arm never does, it is
+  // not the arm that threw the ball (wrong hand selected, or the tracker
+  // lost the arm), and nothing measured off it can be graded honestly.
+  let windowPeakLayback: number | null = null;
+  {
+    const fsIdx = phases.footStrike.frameIndex;
+    const relIdx = phases.release.frameIndex;
+    for (let i = fsIdx + 1; i <= relIdx && i < mFrames.length; i++) {
+      const lb = laybackAngle(mFrames[i], S.throwElbow, S.throwWrist, throwDirSign);
+      if (lb !== null && (windowPeakLayback === null || lb > windowPeakLayback)) {
+        windowPeakLayback = lb;
+      }
+    }
+  }
+  const armValid = windowPeakLayback !== null && windowPeakLayback >= 90;
+  if (!armValid) {
+    metrics.footStrike.armCocked = null;
+    metrics.footStrike.elbowAngleAtFS = null;
+    metrics.footStrike.forearmVerticalAngle = null;
+    metrics.footStrike.shoulderAbductionAtFS = null;
+    metrics.mer.maxLayback = null;
+    metrics.mer.elbowFlexion = null;
+    metrics.mer.shoulderAbduction = null;
+    metrics.mer.elbowHeight = null;
+    metrics.release.armSlot = null;
+    for (const key of [
+      "footStrike.elbowAngleAtFS",
+      "footStrike.forearmVerticalAngle",
+      "footStrike.shoulderAbductionAtFS",
+      "mer.maxLayback",
+      "mer.elbowFlexion",
+      "mer.shoulderAbduction",
+      "mer.elbowHeight",
+      "release.armSlot",
+    ]) {
+      C[key] = 0;
+    }
+  }
+
+  return { metrics, confidence: C, armValid };
 }
 
 export function calculateAllMetrics(
   frames: ValidFrame[],
   phases: DetectedPhases,
-  throwingHand: "left" | "right" = "right"
+  throwingHand: "left" | "right" = "right",
+  aspectRatio = 1
 ): AllMetrics {
-  return calculateAllMetricsWithConfidence(frames, phases, throwingHand).metrics;
+  return calculateAllMetricsWithConfidence(frames, phases, throwingHand, aspectRatio).metrics;
 }

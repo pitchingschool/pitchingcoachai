@@ -105,73 +105,10 @@ const METRIC_DEFS: MetricDef[] = [
     },
   },
   // === STRIDE ===
-  {
-    key: "drift.hipLeadDistance",
-    label: "Hip Lead",
-    phase: "drift",
-    unit: "",
-    weight: 3,
-    thresholds: {
-      "12u": { lo: 0.08, hi: 0.20 },
-      "14u": { lo: 0.10, hi: 0.22 },
-      hs: { lo: 0.12, hi: 0.25 },
-      college: { lo: 0.14, hi: 0.28 },
-      pro: { lo: 0.16, hi: 0.30 },
-    },
-    explanation: {
-      "A+": "Elite hip lead. Your hips are moving toward the plate early, just like the best in the game.",
-      A: "Great hip lead. Your hips are driving forward before your foot plants, which builds momentum.",
-      B: "Good hip lead, but there is room to get your hips moving sooner and farther.",
-      C: "Your hips are not leading enough. You are leaving velocity on the table by not getting moving early.",
-      D: "Minimal hip lead. Your upper body is doing too much of the work.",
-      F: "No hip lead detected. The lower half is not starting the delivery.",
-    },
-  },
-  {
-    key: "drift.backLegDriveAngle",
-    label: "Back Leg Drive",
-    phase: "drift",
-    unit: "°",
-    weight: 2.5,
-    thresholds: {
-      "12u": { lo: 125, hi: 165 },
-      "14u": { lo: 130, hi: 165 },
-      hs: { lo: 135, hi: 160 },
-      college: { lo: 140, hi: 160 },
-      pro: { lo: 140, hi: 158 },
-    },
-    explanation: {
-      "A+": "Perfect back leg. You are holding tension into the ground and transferring force up the chain.",
-      A: "Great back leg. You are holding tension into the rubber and using the ground to drive forward.",
-      B: "Good back leg, but you could hold more tension into the ground before releasing. Do not rush off the rubber.",
-      C: "Your back leg is extending too early. Stay loaded into the ground and let the energy transfer forward instead of pushing yourself off the rubber.",
-      D: "Your back leg is collapsing or extending way too early. Press into the rubber, not off it.",
-      F: "The back leg is not creating ground force. Learning to hold tension into the rubber is the first priority.",
-    },
-  },
-  {
-    key: "drift.backLegTensionHold",
-    label: "Drive Leg Tension Hold",
-    phase: "drift",
-    unit: "/100",
-    weight: 3,
-    higherIsBetter: true,
-    thresholds: {
-      "12u": { lo: 40, hi: 100 },
-      "14u": { lo: 45, hi: 100 },
-      hs: { lo: 50, hi: 100 },
-      college: { lo: 55, hi: 100 },
-      pro: { lo: 60, hi: 100 },
-    },
-    explanation: {
-      "A+": "Elite drive leg. You hold tension into the ground all the way through your stride and only extend late, right as you plant.",
-      A: "Great tension hold. Your back leg stays loaded through most of the stride before releasing.",
-      B: "Decent drive leg, but you start to extend a little early. Feel the ground under your back foot longer.",
-      C: "Your back leg extends too early. It should stay bent and loaded through most of the stride, then extend late.",
-      D: "Your drive leg pushes off early. The back knee straightens well before foot strike. Press into the rubber and hold that tension.",
-      F: "The back leg extends almost immediately. The drive leg pattern needs a full rebuild: hold tension, do not push off.",
-    },
-  },
+  // Removed from the report 2026-11-11 (Coach Grady: "The stride we can
+  // just remove because all that matters is front foot strike."). The
+  // drift phase is still detected internally, but nothing in it is
+  // measured, graded, or shown.
   // === FOOT STRIKE ===
   {
     key: "footStrike.strideLength",
@@ -745,14 +682,27 @@ function letterForScore(score: number): LetterGrade {
   return "F";
 }
 
+/** Below this keypoint-visibility confidence a value is not trustworthy
+ *  enough to grade: it becomes "not measured" instead of a letter grade. */
+const CONFIDENCE_FLOOR = 0.45;
+
 export function gradeAllMetrics(
   metrics: AllMetrics,
-  level: AthleteLevel
+  level: AthleteLevel,
+  /** Per-metric measurement confidence 0-1. When provided, metrics below
+   *  CONFIDENCE_FLOOR are excluded from scoring as "not measured". */
+  confidence?: Record<string, number>
 ): { metricGrades: MetricGrade[]; phaseGrades: PhaseGrade[]; overall: OverallGrade } {
   const metricGrades: MetricGrade[] = [];
 
   for (const def of METRIC_DEFS) {
-    const value = getNestedValue(metrics, def.key);
+    let value = getNestedValue(metrics, def.key);
+    const conf = confidence?.[def.key];
+    if (value !== null && conf !== undefined && conf < CONFIDENCE_FLOOR) {
+      // Tracked too poorly to trust: an honest report says "not measured",
+      // never a confident letter grade on shaky points.
+      value = null;
+    }
     const { grade, color, injuryFlag, measured } = gradeValue(value, def, level);
 
     metricGrades.push({
@@ -765,12 +715,14 @@ export function gradeAllMetrics(
       phase: def.phase,
       injuryFlag,
       measured,
+      info: def.weight === 0,
       explanation: measured ? def.explanation[grade] : NOT_MEASURED_EXPLANATION,
     });
   }
 
-  // Phase grades: only measured, weighted metrics count
-  const phases: PhaseName[] = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"];
+  // Phase grades: only measured, weighted metrics count.
+  // "drift" (Stride) is intentionally absent: removed from the report.
+  const phases: PhaseName[] = ["legLift", "footStrike", "mer", "release", "deceleration"];
   const phaseGrades: PhaseGrade[] = phases.map((phase) => {
     const phaseMetrics = metricGrades.filter((m) => m.phase === phase);
     const gradedMetrics = phaseMetrics.filter((m) => {
@@ -805,8 +757,11 @@ export function gradeAllMetrics(
   // Overall grade: phases with no measured metrics are excluded
   let overallTotal = 0;
   let overallWeight = 0;
-  const phaseWeights: Record<PhaseName, number> = {
-    legLift: 0.5, drift: 2, footStrike: 3.5, mer: 2.5, release: 1, deceleration: 1,
+  // Stride's old weight (2 of 10.5) is redistributed proportionally by
+  // construction: the overall score is the weighted average of the phases
+  // that remain. PROPOSED, pending Coach Grady sign-off.
+  const phaseWeights: Partial<Record<PhaseName, number>> = {
+    legLift: 0.5, footStrike: 3.5, mer: 2.5, release: 1, deceleration: 1,
   };
   for (const pg of phaseGrades) {
     const hasData = pg.metrics.some((m) => {
@@ -815,7 +770,8 @@ export function gradeAllMetrics(
       return def !== undefined && def.weight > 0;
     });
     if (!hasData) continue;
-    const w = phaseWeights[pg.phase];
+    const w = phaseWeights[pg.phase] ?? 0;
+    if (w <= 0) continue;
     overallTotal += pg.score * w;
     overallWeight += w;
   }

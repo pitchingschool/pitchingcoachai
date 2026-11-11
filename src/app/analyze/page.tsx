@@ -105,7 +105,7 @@ export default function AnalyzePage() {
         metricsFull[m.metricKey] = {
           value: m.value,
           unit: m.unit,
-          grade: m.measured ? m.grade : "not_measured",
+          grade: m.info ? "info" : m.measured ? m.grade : "not_measured",
           measured: m.measured,
           confidence: r.metricConfidence[m.metricKey] ?? 0,
         };
@@ -382,7 +382,7 @@ export default function AnalyzePage() {
           <div>
             <h1 className="text-2xl font-bold mb-2">Analyze Your Pitching Mechanics</h1>
             <p className="text-white/50 text-sm mb-6">
-              Upload a side-view video. AI analyzes your drift, foot strike, MER, and release, your video never leaves your device.
+              Upload a side-view video. AI analyzes your leg lift, foot strike, layback, and release, your video never leaves your device.
             </p>
 
             {!mpReady && !error && (
@@ -565,16 +565,28 @@ export default function AnalyzePage() {
               </div>
             )}
 
-            {/* Hand mismatch warning */}
-            {result.handMismatch && (
+            {/* Arm tracking warning: throwing arm could not be verified */}
+            {result.armTrackingWarning && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 flex items-start gap-3">
+                <span className="text-red-400 text-lg mt-0.5">&#9888;&#65039;</span>
+                <div>
+                  <p className="text-sm font-bold text-red-300">We could not verify the throwing arm</p>
+                  <p className="text-xs text-white/50 mt-1 leading-relaxed">
+                    The {result.throwingHand === "left" ? "left" : "right"} arm never reached a real layback position in this video, which does not happen on an actual pitch. Arm measurements are excluded from the score instead of being graded wrong. Double-check the {result.throwingHand === "left" ? "LHP" : "RHP"} selection, and film from a side view with the whole body visible, then run it again.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Hand cross-check warning. Measurement always uses the hand
+                the user selected; this only flags a possible wrong pick. */}
+            {result.handMismatch && !result.armTrackingWarning && (
               <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl p-4 flex items-start gap-3">
                 <span className="text-yellow-400 text-lg mt-0.5">&#9995;</span>
                 <div>
-                  <p className="text-sm font-bold text-yellow-300">
-                    This looks like a {result.effectiveHand === "left" ? "left" : "right"}-handed pitcher
-                  </p>
+                  <p className="text-sm font-bold text-yellow-300">Double-check the throwing hand</p>
                   <p className="text-xs text-white/50 mt-1 leading-relaxed">
-                    You selected {result.throwingHand === "left" ? "LHP" : "RHP"}, but the motion in the video reads as {result.effectiveHand === "left" ? "left" : "right"}-handed, so this report measured the {result.effectiveHand} arm. If that is wrong, re-run with the other hand selected.
+                    You selected {result.throwingHand === "left" ? "LHP" : "RHP"} and this report measured the {result.throwingHand} arm, as selected. The motion in the video reads more like a {result.detectedHand === "left" ? "left" : "right"}-handed delivery, which can simply be the camera angle. If the selection was a mistake, re-run with the correct hand.
                   </p>
                 </div>
               </div>
@@ -622,9 +634,9 @@ export default function AnalyzePage() {
             {/* Key Findings Summary */}
             {(() => {
               const allMetrics = result.grade.phaseGrades.flatMap(pg => pg.metrics);
-              const strengths = allMetrics.filter(m => m.measured && (m.grade === "A+" || m.grade === "A")).slice(0, 2);
+              const strengths = allMetrics.filter(m => m.measured && !m.info && (m.grade === "A+" || m.grade === "A")).slice(0, 2);
               const weaknesses = allMetrics
-                .filter(m => m.measured && (m.grade === "C" || m.grade === "D" || m.grade === "F"))
+                .filter(m => m.measured && !m.info && (m.grade === "C" || m.grade === "D" || m.grade === "F"))
                 .slice(0, 2);
 
               if (strengths.length === 0 && weaknesses.length === 0) return null;
@@ -718,14 +730,14 @@ export default function AnalyzePage() {
             )}
 
             {/* Positives */}
-            {result.grade.phaseGrades.some((pg) => pg.metrics.some((m) => m.color === "green")) && (
+            {result.grade.phaseGrades.some((pg) => pg.metrics.some((m) => m.measured && !m.info && m.color === "green")) && (
               <div>
                 <h3 className="text-sm font-bold text-white/40 uppercase tracking-wider mb-3">
                   What&apos;s Working
                 </h3>
                 {result.grade.phaseGrades.flatMap((pg) =>
                   pg.metrics
-                    .filter((m) => m.color === "green")
+                    .filter((m) => m.measured && !m.info && m.color === "green")
                     .slice(0, 1)
                     .map((m) => (
                       <div key={m.metricKey} className="bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 mb-2 text-sm text-green-300">

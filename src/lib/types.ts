@@ -68,6 +68,10 @@ export interface DetectedPhases {
   mer: PhaseResult;          // maximum external rotation (arm cocking)
   release: PhaseResult;      // ball release (acceleration phase end)
   deceleration: PhaseResult; // follow-through / deceleration
+  /** Throw direction sign the detector used (+1 = toward image right).
+   *  Measurement reuses this instead of re-deriving it with a different
+   *  window. Optional: rows stored before this field exist without it. */
+  throwDirSign?: number;
 }
 
 // ============================================================
@@ -170,6 +174,9 @@ export interface MetricGrade {
   /** False when the metric could not be measured on this video (low keypoint
    *  confidence). Unmeasured metrics are excluded from all scoring. */
   measured: boolean;
+  /** True for informational (weight 0) metrics such as arm slot: shown as
+   *  "Info", never counted as a strength, weakness, or letter grade. */
+  info?: boolean;
   explanation: string;
 }
 
@@ -252,10 +259,16 @@ export interface AnalysisResult {
   athleteLevel: AthleteLevel;
   /** Hand the user selected. */
   throwingHand: "left" | "right";
-  /** Hand the motion itself indicates (used for all measurement). */
+  /** Hand used for all measurement. The user's selection always wins;
+   *  this equals throwingHand and is kept for stored-row compatibility. */
   effectiveHand: "left" | "right";
+  /** Hand the motion detector reads from the video (cross-check only). */
+  detectedHand: "left" | "right";
   /** True when the detected motion disagrees with the selected hand. */
   handMismatch: boolean;
+  /** True when the throwing arm could not be verified (its layback never
+   *  passed vertical). Arm measurements are excluded from the score. */
+  armTrackingWarning: boolean;
   /** True when the pitcher is too small in frame for reliable measurement. */
   framingWarning: boolean;
   /** Median body height as a fraction of frame height. */

@@ -5,11 +5,13 @@
     "test-clip-2026-10-lhp15.mov": {
       "athlete": "anonymized: 15yo HS freshman, 5'4\", 110 lbs",
       "video": "indoor facility, rear three-quarter view (camera behind the mound, open side), 1920x1080, 30fps, HEVC, 14.5s, single pitch with delivery at ~12.7-13.4s, pitcher ~2/3 frame height. NOT a true side view, so angle metrics are not labeled for this clip.",
-      "throwingHand": "left",
+      "throwingHand": "right",
+      "throwingHandNote": "Coach Grady confirmed 2026-11-11 the pitcher is RIGHT-handed. The engine (and this file, until today) had him as a lefty: side-resolution picked the wrong arm on this rear three-quarter view. Filename still says lhp15; kept to avoid breaking pose/jsons, treat it as a misnomer.",
       "level": "highschool",
       "fps": 30,
       "labeling": "Frame reads made from a frame-numbered contact sheet plus zoomed crops of the landing foot and the ball leaving the hand (ball visibly separated by frame 400). Labeling delegated to Claude by Coach Grady on 2026-10-30; pending his eyeball confirmation against the contact sheet.",
       "phases": {
+        "legLift": { "frame": 300, "frameMax": 306, "note": "Knee apex read from zoomed contact sheet 2026-11-11; long high hold ~296-316, descent starts ~320. Detector picks ~330-333 (post-peak) per coach complaint." },
         "footStrike": { "frame": 385, "frameMax": 387 },
         "maxLayback": { "frame": 395, "frameMax": 396 },
         "release": { "frame": 398, "frameMax": 399 }

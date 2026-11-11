@@ -81,12 +81,13 @@ export function compareWithPrevious(
   const previous = history[history.length - 1];
   const scoreDelta = currentScore - previous.score;
 
-  const phaseNames = ["legLift", "drift", "footStrike", "mer", "release", "deceleration"] as const;
+  // "drift" (Stride) is no longer part of the report; old saved analyses
+  // may still carry it, but it is not compared or shown.
+  const phaseNames = ["legLift", "footStrike", "mer", "release", "deceleration"] as const;
   const phaseLabels: Record<string, string> = {
     legLift: "Leg Lift",
-    drift: "Stride",
     footStrike: "Foot Strike",
-    mer: "Arm Cocking",
+    mer: "Max Layback",
     release: "Release",
     deceleration: "Follow-Through",
   };
