@@ -1,11 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-inter",
+});
+
+// Athletic condensed display face for headlines; body stays Inter.
+const barlow = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+  variable: "--font-display",
 });
 
 export const viewport: Viewport = {
@@ -68,7 +76,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${barlow.variable}`}>
       <head>
         {/* JSON-LD Structured Data for SEO */}
         <script
@@ -106,7 +114,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.className} antialiased bg-[#0a0a0a] text-white`}>{children}</body>
+      <body className={`${inter.className} antialiased text-white`}>{children}</body>
     </html>
   );
 }

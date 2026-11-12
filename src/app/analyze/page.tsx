@@ -368,15 +368,17 @@ export default function AnalyzePage() {
   const currentPhaseMetrics = currentPhaseGrade?.metrics || [];
 
   return (
-    <div className="min-h-screen bg-brand-dark">
+    <div className="min-h-screen">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
-        <Link href="/" className="text-xl font-bold tracking-tight">
-          PitchingCoach<span className="text-brand-red">AI</span>
-        </Link>
-        <a href="https://gradyspitchingschool.com" target="_blank" rel="noopener noreferrer" className="text-sm text-white/60 hover:text-white">
-          Book a Lesson &rarr;
-        </a>
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-[#060606]/70 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
+          <Link href="/" className="text-xl font-bold tracking-tight">
+            PitchingCoach<span className="text-brand-red">AI</span>
+          </Link>
+          <a href="https://gradyspitchingschool.com" target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-brand-red hover:text-red-400 transition-colors">
+            Book a Lesson &rarr;
+          </a>
+        </div>
       </nav>
 
       <div className="max-w-2xl mx-auto px-6 py-8">
@@ -384,7 +386,7 @@ export default function AnalyzePage() {
         {/* ============ UPLOAD ============ */}
         {stage === "upload" && (
           <div>
-            <h1 className="text-2xl font-bold mb-2">Analyze Your Pitching Mechanics</h1>
+            <h1 className="font-display text-4xl font-semibold uppercase tracking-wide text-gradient mb-2">Analyze Your Pitching Mechanics</h1>
             <p className="text-white/50 text-sm mb-6">
               Upload a side-view video. AI analyzes your leg lift, foot strike, layback, and release, your video never leaves your device.
             </p>
@@ -469,7 +471,7 @@ export default function AnalyzePage() {
                       <button
                         onClick={handleAnalyze}
                         disabled={throwingHand === null}
-                        className="flex-1 px-5 py-3 rounded-xl bg-brand-red text-white font-bold text-sm hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="btn-primary flex-1 px-5 py-3 rounded-xl text-white font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {throwingHand === null ? "Pick RHP or LHP to continue" : "Analyze My Mechanics →"}
                       </button>
@@ -536,7 +538,7 @@ export default function AnalyzePage() {
               <button
                 onClick={submitLead}
                 disabled={!email.includes("@") || submitting}
-                className="w-full py-3 rounded-xl bg-brand-red text-white font-bold hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="btn-primary w-full py-3 rounded-xl text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {submitting ? "Unlocking..." : "Unlock My Full Report \u2192"}
               </button>

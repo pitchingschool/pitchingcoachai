@@ -15,18 +15,41 @@ function useAnalysisCount() {
   return count;
 }
 
-function SampleReport() {
+function SectionHeader({ eyebrow, title, sub }: { eyebrow: string; title: string; sub: string }) {
   return (
-    <div className="bg-[#111] border border-white/10 rounded-2xl p-5 max-w-md mx-auto text-left shadow-2xl shadow-red-500/5">
+    <div className="text-center mb-12">
+      <p className="text-[11px] text-brand-red font-bold uppercase tracking-[0.2em] mb-2">{eyebrow}</p>
+      <h2 className="font-display text-3xl md:text-4xl font-semibold uppercase tracking-wide text-gradient mb-3">
+        {title}
+      </h2>
+      <p className="text-sm text-white/40 max-w-md mx-auto">{sub}</p>
+    </div>
+  );
+}
+
+function SampleReport() {
+  const ringC = 2 * Math.PI * 20;
+  return (
+    <div className="glass-card rounded-2xl p-5 max-w-md mx-auto text-left shadow-2xl shadow-red-500/10 backdrop-blur-sm">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-xs text-white/40 uppercase tracking-wider">Mechanics Report</p>
           <p className="text-sm font-bold">Sample Pitcher, Age 14</p>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-black text-brand-red leading-none">84</div>
-          <div className="text-xs text-white/40">Overall B</div>
+        <div className="relative w-14 h-14">
+          <svg className="w-full h-full -rotate-90" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+            <circle
+              cx="24" cy="24" r="20" fill="none"
+              stroke="#dc2626" strokeWidth="4" strokeLinecap="round"
+              strokeDasharray={`${ringC * 0.84} ${ringC}`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-base font-black text-white leading-none">84</span>
+            <span className="text-[8px] text-white/40 font-bold">B</span>
+          </div>
         </div>
       </div>
 
@@ -38,7 +61,7 @@ function SampleReport() {
           { phase: "Layback", grade: "C", score: 74 },
           { phase: "Release", grade: "B", score: 86 },
         ].map((p) => (
-          <div key={p.phase} className="bg-white/5 rounded-lg py-2 text-center">
+          <div key={p.phase} className="bg-white/5 border border-white/5 rounded-lg py-2 text-center">
             <div className="text-[10px] text-white/40 uppercase">{p.phase}</div>
             <div className={`text-lg font-black ${p.grade === "A" ? "text-green-400" : p.grade === "B" ? "text-blue-400" : "text-yellow-400"}`}>
               {p.grade}
@@ -50,22 +73,27 @@ function SampleReport() {
       {/* Sample metrics */}
       <div className="space-y-2 mb-4">
         {[
-          { label: "Hip-Shoulder Separation", value: "42\u00b0", grade: "A", color: "text-green-400" },
-          { label: "Stride Length", value: "81%", grade: "B", color: "text-blue-400" },
-          { label: "Arm Timing at FFS", value: "Late", grade: "C", color: "text-yellow-400" },
+          { label: "Hip-Shoulder Separation", value: "42°", grade: "A", color: "text-green-400", bar: "bg-green-400", width: "92%" },
+          { label: "Stride Length", value: "81%", grade: "B", color: "text-blue-400", bar: "bg-blue-400", width: "78%" },
+          { label: "Arm Timing at FFS", value: "Late", grade: "C", color: "text-yellow-400", bar: "bg-yellow-400", width: "55%" },
         ].map((m) => (
-          <div key={m.label} className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
-            <span className="text-xs text-white/60">{m.label}</span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-white/80">{m.value}</span>
-              <span className={`text-xs font-bold ${m.color}`}>{m.grade}</span>
+          <div key={m.label} className="bg-white/5 border border-white/5 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-white/60">{m.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-white/80">{m.value}</span>
+                <span className={`text-xs font-bold ${m.color}`}>{m.grade}</span>
+              </div>
+            </div>
+            <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${m.bar}`} style={{ width: m.width }} />
             </div>
           </div>
         ))}
       </div>
 
       {/* Drill preview */}
-      <div className="bg-brand-red/10 border border-brand-red/20 rounded-lg px-3 py-2">
+      <div className="bg-brand-red/10 border border-brand-red/25 rounded-lg px-3 py-2">
         <p className="text-[10px] text-brand-red uppercase font-bold tracking-wider mb-1">Top Drill</p>
         <p className="text-xs text-white/80">Mirror Work + T-Position Rocker</p>
         <p className="text-[10px] text-white/40">10 slow-motion reps, then 10 throws at 75%</p>
@@ -82,111 +110,126 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-brand-dark">
+    <div className="min-h-screen">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <div className="text-xl font-bold tracking-tight">
-          PitchingCoach<span className="text-brand-red">AI</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/analyze" className="text-sm font-medium text-white/80 hover:text-white transition-colors hidden sm:block">
-            Analyze
-          </Link>
-          <a
-            href="https://gradyspitchingschool.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-brand-red hover:text-red-400 transition-colors"
-          >
-            Book a Lesson &rarr;
-          </a>
+      <nav className="sticky top-0 z-50 backdrop-blur-xl bg-[#060606]/70 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
+          <div className="text-xl font-bold tracking-tight">
+            PitchingCoach<span className="text-brand-red">AI</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <Link href="/analyze" className="text-sm font-medium text-white/80 hover:text-white transition-colors hidden sm:block">
+              Analyze
+            </Link>
+            <a
+              href="https://gradyspitchingschool.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-brand-red hover:text-red-400 transition-colors"
+            >
+              Book a Lesson &rarr;
+            </a>
+          </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="px-6 pt-16 pb-12 max-w-6xl mx-auto">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left: copy */}
-          <div className="text-center lg:text-left">
-            <div className="inline-block bg-brand-red/10 border border-brand-red/30 rounded-full px-4 py-1.5 text-xs font-bold text-brand-red uppercase tracking-wider mb-6 animate-fade-in-up">
-              Free &middot; No Download &middot; Any Device
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black leading-[1.1] mb-6 animate-fade-in-up-delay-1">
-              Find Out Exactly What&apos;s Wrong With Your Pitching Mechanics
-            </h1>
-            <p className="text-lg text-white/60 mb-8 max-w-lg mx-auto lg:mx-0 animate-fade-in-up-delay-2">
-              Upload a 10-second side-view video. Get a full biomechanical
-              breakdown with grades, drill prescriptions, and a clear list
-              of what needs work, in under 60 seconds.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start animate-fade-in-up-delay-3">
-              <Link
-                href="/analyze"
-                className="inline-block bg-brand-red hover:bg-red-700 text-white font-bold text-lg px-10 py-4 rounded-xl transition-all text-center glow-red hover:scale-[1.02]"
-              >
-                Analyze My Mechanics &rarr;
-              </Link>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-grid pointer-events-none" />
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[640px] h-[320px] bg-brand-red/15 rounded-full blur-[120px] pointer-events-none animate-float" />
+        <div className="relative px-6 pt-16 pb-14 max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: copy */}
+            <div className="text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 bg-brand-red/10 border border-brand-red/30 rounded-full px-4 py-1.5 text-xs font-bold text-brand-red uppercase tracking-wider mb-6 animate-fade-in-up">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-soft-ping absolute inline-flex h-full w-full rounded-full bg-brand-red" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-red" />
+                </span>
+                Free &middot; No Download &middot; Any Device
+              </div>
+              <h1 className="font-display text-5xl md:text-7xl font-bold uppercase leading-[0.95] tracking-wide mb-6 animate-fade-in-up-delay-1">
+                <span className="text-gradient">Find Out Exactly What&apos;s Wrong With Your</span>{" "}
+                <span className="text-gradient-red">Pitching Mechanics</span>
+              </h1>
+              <p className="text-lg text-white/60 mb-8 max-w-lg mx-auto lg:mx-0 animate-fade-in-up-delay-2">
+                Upload a 10-second side-view video. Get a full biomechanical
+                breakdown with grades, drill prescriptions, and a clear list
+                of what needs work, in under 60 seconds.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start animate-fade-in-up-delay-3">
+                <Link
+                  href="/analyze"
+                  className="btn-primary inline-block text-white font-bold text-lg px-10 py-4 rounded-xl text-center"
+                >
+                  Analyze My Mechanics &rarr;
+                </Link>
+              </div>
+
+              {/* Stats */}
+              <div className="flex flex-wrap gap-6 mt-10 justify-center lg:justify-start">
+                <div>
+                  <div className="font-display text-3xl font-bold text-gradient-red">{analysisCount.toLocaleString()}+</div>
+                  <div className="text-xs text-white/40">Pitchers Analyzed</div>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div>
+                  <div className="font-display text-3xl font-bold">Ages 10&ndash;22</div>
+                  <div className="text-xs text-white/40">Youth to College</div>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div>
+                  <div className="font-display text-3xl font-bold">100%</div>
+                  <div className="text-xs text-white/40">Free Forever</div>
+                </div>
+              </div>
             </div>
 
-            {/* Stats */}
-            <div className="flex flex-wrap gap-6 mt-8 justify-center lg:justify-start">
-              <div>
-                <div className="text-2xl font-black">{analysisCount.toLocaleString()}+</div>
-                <div className="text-xs text-white/40">Pitchers Analyzed</div>
-              </div>
-              <div className="w-px bg-white/10" />
-              <div>
-                <div className="text-2xl font-black">Ages 10&ndash;22</div>
-                <div className="text-xs text-white/40">Youth to College</div>
-              </div>
-              <div className="w-px bg-white/10" />
-              <div>
-                <div className="text-2xl font-black">100%</div>
-                <div className="text-xs text-white/40">Free Forever</div>
-              </div>
+            {/* Right: sample report */}
+            <div className="hidden md:block">
+              <SampleReport />
             </div>
-          </div>
-
-          {/* Right: sample report */}
-          <div className="hidden md:block">
-            <SampleReport />
           </div>
         </div>
       </section>
 
       {/* How it works */}
       <section className="px-6 py-16 max-w-5xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-3">How It Works</h2>
-        <p className="text-sm text-white/40 text-center mb-12 max-w-md mx-auto">
-          No app to download. No account to create. Just upload and go.
-        </p>
+        <SectionHeader
+          eyebrow="Three Steps"
+          title="How It Works"
+          sub="No app to download. No account to create. Just upload and go."
+        />
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
               step: "1",
-              icon: "\ud83c\udfa5",
+              icon: "🎥",
               title: "Upload Your Video",
-              desc: "Side-view pitching video, 3\u201310 seconds. Phone camera is fine. MP4, MOV, AVI, or WebM.",
+              desc: "Side-view pitching video, 3–10 seconds. Phone camera is fine. MP4, MOV, AVI, or WebM.",
             },
             {
               step: "2",
-              icon: "\ud83e\udde0",
+              icon: "🧠",
               title: "AI Analyzes Your Delivery",
               desc: "Our AI tracks 33 body landmarks through every frame. Your video never leaves your device.",
             },
             {
               step: "3",
-              icon: "\ud83d\udcca",
+              icon: "📊",
               title: "Get Your Full Report",
               desc: "Phase-by-phase grades, metric breakdowns, and up to 5 targeted drill prescriptions.",
             },
           ].map((item) => (
             <div
               key={item.step}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 text-center hover:border-white/10 transition-colors"
+              className="glass-card relative overflow-hidden rounded-2xl p-8 text-center"
             >
+              <span className="absolute -top-3 right-2 font-display text-[88px] font-bold text-white/[0.04] leading-none select-none pointer-events-none">
+                {item.step}
+              </span>
               <div className="text-4xl mb-4">{item.icon}</div>
-              <div className="text-xs text-brand-red font-bold mb-2 tracking-wider">
+              <div className="text-xs text-brand-red font-bold mb-2 tracking-[0.2em]">
                 STEP {item.step}
               </div>
               <h3 className="text-lg font-bold mb-2">{item.title}</h3>
@@ -198,39 +241,42 @@ export default function HomePage() {
 
       {/* What you get */}
       <section className="px-6 py-16 max-w-5xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-3">What&apos;s in Your Report</h2>
-        <p className="text-sm text-white/40 text-center mb-12 max-w-md mx-auto">
-          Same phases the best pitching coaches in the country are looking at.
-        </p>
+        <SectionHeader
+          eyebrow="Phase by Phase"
+          title="What's in Your Report"
+          sub="Same phases the best pitching coaches in the country are looking at."
+        />
         <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             {
               phase: "Leg Lift",
               desc: "Balance point, knee height, and posture at the top of the delivery",
-              color: "border-purple-500/30",
+              bar: "bg-purple-400",
             },
             {
               phase: "Foot Strike",
               desc: "Stride length, arm timing, and hip-shoulder separation at landing",
-              color: "border-green-500/30",
+              bar: "bg-green-400",
             },
             {
               phase: "Max Layback",
               desc: "How far the arm lays back, elbow bend, and arm height at peak load",
-              color: "border-yellow-500/30",
+              bar: "bg-yellow-400",
             },
             {
               phase: "Release",
               desc: "Trunk flexion, lead leg brace, and arm slot at ball release",
-              color: "border-red-500/30",
+              bar: "bg-red-400",
             },
             {
               phase: "Follow-Through",
               desc: "Deceleration path, finish balance, and how the arm slows down",
-              color: "border-blue-500/30",
+              bar: "bg-blue-400",
             },
-          ].map((p) => (
-            <div key={p.phase} className={`bg-white/[0.03] border ${p.color} rounded-xl p-5`}>
+          ].map((p, i) => (
+            <div key={p.phase} className="glass-card relative overflow-hidden rounded-xl p-5 pt-6">
+              <span className={`absolute top-0 left-0 right-0 h-[3px] ${p.bar} opacity-70`} />
+              <p className="text-[10px] text-white/30 font-bold mb-1">PHASE {i + 1}</p>
               <h3 className="font-bold mb-1.5 text-sm">{p.phase}</h3>
               <p className="text-xs text-white/50 leading-relaxed">{p.desc}</p>
             </div>
@@ -244,15 +290,16 @@ export default function HomePage() {
 
       {/* Mobile sample report (shown only on small screens) */}
       <section className="px-6 py-8 md:hidden">
-        <h2 className="text-lg font-bold text-center mb-4">Sample Report</h2>
+        <h2 className="font-display text-2xl font-semibold uppercase tracking-wide text-center mb-4">Sample Report</h2>
         <SampleReport />
       </section>
 
       {/* Credentials */}
       <section className="px-6 py-16 max-w-3xl mx-auto text-center">
-        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-8 md:p-12">
-          <p className="text-xs text-brand-red uppercase tracking-wider font-bold mb-4">Built by a Real Pitching Coach</p>
-          <h2 className="text-2xl font-bold mb-4">
+        <div className="glass-card relative overflow-hidden rounded-2xl p-8 md:p-12">
+          <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-[400px] h-[160px] bg-brand-red/10 rounded-full blur-[80px] pointer-events-none" />
+          <p className="text-[11px] text-brand-red uppercase tracking-[0.2em] font-bold mb-4">Built by a Real Pitching Coach</p>
+          <h2 className="font-display text-3xl font-semibold uppercase tracking-wide mb-4">
             Mike Grady &middot; Grady&apos;s Pitching School
           </h2>
           <p className="text-white/50 text-sm leading-relaxed max-w-lg mx-auto mb-6">
@@ -270,26 +317,27 @@ export default function HomePage() {
 
       {/* Why PitchingCoachAI vs Others */}
       <section className="px-6 py-16 max-w-5xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-3">Why Pitchers Choose Us</h2>
-        <p className="text-sm text-white/40 text-center mb-12 max-w-md mx-auto">
-          Built different from every other analysis tool on the market.
-        </p>
+        <SectionHeader
+          eyebrow="The Difference"
+          title="Why Pitchers Choose Us"
+          sub="Built different from every other analysis tool on the market."
+        />
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              icon: "\ud83c\udf10",
+              icon: "🌐",
               title: "Works on Any Device",
               desc: "No iOS app to download, no account to create. Upload from your phone, tablet, or laptop. Android, iPhone, Chrome, Safari, all supported.",
               highlight: "vs. Mustard (iOS only)",
             },
             {
-              icon: "\ud83d\udd12",
+              icon: "🔒",
               title: "Your Video Stays Private",
-              desc: "All analysis happens in your browser. Your video is never uploaded to a server. We can\u2019t see it, store it, or share it.",
+              desc: "All analysis happens in your browser. Your video is never uploaded to a server. We can’t see it, store it, or share it.",
               highlight: "100% client-side processing",
             },
             {
-              icon: "\ud83c\udfa4",
+              icon: "🎤",
               title: "Real Coach, Real Methodology",
               desc: "Grading thresholds set by a coach with 20 years of experience, not software engineers guessing at what good mechanics look like.",
               highlight: "ASMI + Driveline informed",
@@ -297,7 +345,7 @@ export default function HomePage() {
           ].map((item) => (
             <div
               key={item.title}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 hover:border-white/10 transition-colors"
+              className="glass-card rounded-2xl p-6"
             >
               <div className="text-3xl mb-3">{item.icon}</div>
               <h3 className="text-base font-bold mb-2">{item.title}</h3>
@@ -310,10 +358,11 @@ export default function HomePage() {
 
       {/* FAQ */}
       <section className="px-6 py-16 max-w-3xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-3">Frequently Asked Questions</h2>
-        <p className="text-sm text-white/40 text-center mb-10">
-          Everything parents and coaches want to know.
-        </p>
+        <SectionHeader
+          eyebrow="Good Questions"
+          title="Frequently Asked Questions"
+          sub="Everything parents and coaches want to know."
+        />
         <div className="space-y-4">
           {[
             {
@@ -321,12 +370,12 @@ export default function HomePage() {
               a: "A side-view (perpendicular to the pitching direction) video showing the pitcher from head to toe. Phone camera is fine, 3 to 10 seconds, any format (MP4, MOV, AVI, WebM). Higher frame rate (60fps) gives better results, but 30fps works too.",
             },
             {
-              q: "Is it really free? What\u2019s the catch?",
+              q: "Is it really free? What’s the catch?",
               a: "100% free, no limits. We built this as a tool for pitchers and as a way for coaches to connect with families who want expert help. If you want personalized coaching, Mike Grady offers in-person and virtual lessons.",
             },
             {
               q: "How accurate is AI analysis compared to a real coach?",
-              a: "AI gives you objective data, angles, timing, positions. It\u2019s excellent at measuring what\u2019s happening. A real coach tells you WHY it\u2019s happening and builds a plan to fix it. Use both: AI for data, coach for development.",
+              a: "AI gives you objective data, angles, timing, positions. It’s excellent at measuring what’s happening. A real coach tells you WHY it’s happening and builds a plan to fix it. Use both: AI for data, coach for development.",
             },
             {
               q: "Is my video uploaded to a server?",
@@ -334,16 +383,16 @@ export default function HomePage() {
             },
             {
               q: "What ages does this work for?",
-              a: "Ages 10 through college. Grading thresholds automatically adjust based on the level you select (12U, 14U, High School, College, Pro) so a 12-year-old isn\u2019t graded against MLB standards.",
+              a: "Ages 10 through college. Grading thresholds automatically adjust based on the level you select (12U, 14U, High School, College, Pro) so a 12-year-old isn’t graded against MLB standards.",
             },
             {
               q: "Can I use this for my whole team?",
-              a: "Absolutely. There\u2019s no limit on how many videos you can analyze. Coaches run entire teams through it before practice to identify who needs work on what.",
+              a: "Absolutely. There’s no limit on how many videos you can analyze. Coaches run entire teams through it before practice to identify who needs work on what.",
             },
           ].map((faq) => (
             <details
               key={faq.q}
-              className="group bg-white/[0.03] border border-white/[0.06] rounded-xl overflow-hidden"
+              className="group glass-card rounded-xl overflow-hidden"
             >
               <summary className="px-5 py-4 cursor-pointer text-sm font-medium flex items-center justify-between hover:bg-white/[0.02] transition-colors">
                 {faq.q}
@@ -364,31 +413,32 @@ export default function HomePage() {
 
       {/* Use cases */}
       <section className="px-6 py-16 max-w-5xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-3">Who Uses PitchingCoachAI</h2>
-        <p className="text-sm text-white/40 text-center mb-12 max-w-md mx-auto">
-          Built for every level of the game.
-        </p>
+        <SectionHeader
+          eyebrow="Every Level"
+          title="Who Uses PitchingCoachAI"
+          sub="Built for every level of the game."
+        />
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              icon: "\u26be",
+              icon: "⚾",
               title: "Travel Ball Parents",
               desc: "Get objective data on your kid's mechanics between lessons. Know exactly what to work on before the next session. No more guessing.",
             },
             {
-              icon: "\ud83c\udfaf",
+              icon: "🎯",
               title: "Pitching Coaches",
               desc: "Run your entire roster through in one practice. Identify which pitchers need arm timing work, who's leaking energy, and who's ready for more intensity.",
             },
             {
-              icon: "\ud83c\udfc6",
+              icon: "🏆",
               title: "High School & College Pitchers",
               desc: "Track your progress over time. See how your mechanics change as you develop. Bring data to your next coaching session.",
             },
           ].map((item) => (
             <div
               key={item.title}
-              className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 text-center hover:border-white/10 transition-colors"
+              className="glass-card rounded-2xl p-6 text-center"
             >
               <div className="text-3xl mb-3">{item.icon}</div>
               <h3 className="text-base font-bold mb-2">{item.title}</h3>
@@ -399,22 +449,25 @@ export default function HomePage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="px-6 py-16 max-w-3xl mx-auto text-center">
-        <h2 className="text-3xl md:text-4xl font-black mb-4">
-          Ready to See Your Mechanics?
-        </h2>
-        <p className="text-white/50 mb-8 max-w-md mx-auto">
-          It takes 60 seconds. It&apos;s free. And it might change the way your pitcher trains.
-        </p>
-        <Link
-          href="/analyze"
-          className="inline-block bg-brand-red hover:bg-red-700 text-white font-bold text-lg px-10 py-4 rounded-xl transition-colors"
-        >
-          Analyze My Mechanics &rarr;
-        </Link>
-        <p className="text-xs text-white/30 mt-4">
-          MP4, MOV, AVI, or WebM &middot; Under 100MB &middot; Side view recommended
-        </p>
+      <section className="px-6 py-16 max-w-3xl mx-auto">
+        <div className="relative overflow-hidden rounded-3xl border border-brand-red/25 bg-gradient-to-br from-brand-red/15 via-[#140808] to-[#0a0606] p-10 md:p-14 text-center">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[480px] h-[200px] bg-brand-red/20 rounded-full blur-[100px] pointer-events-none" />
+          <h2 className="relative font-display text-4xl md:text-5xl font-bold uppercase tracking-wide text-gradient mb-4">
+            Ready to See Your Mechanics?
+          </h2>
+          <p className="relative text-white/50 mb-8 max-w-md mx-auto">
+            It takes 60 seconds. It&apos;s free. And it might change the way your pitcher trains.
+          </p>
+          <Link
+            href="/analyze"
+            className="btn-primary relative inline-block text-white font-bold text-lg px-10 py-4 rounded-xl"
+          >
+            Analyze My Mechanics &rarr;
+          </Link>
+          <p className="relative text-xs text-white/30 mt-4">
+            MP4, MOV, AVI, or WebM &middot; Under 100MB &middot; Side view recommended
+          </p>
+        </div>
       </section>
 
       {/* Footer */}

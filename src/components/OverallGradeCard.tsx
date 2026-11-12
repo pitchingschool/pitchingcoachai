@@ -69,7 +69,7 @@ export default function OverallGradeCard({
   }, [grade.score]);
 
   return (
-    <div className={`bg-white/5 border ${COLOR_MAP[grade.color] || ""} rounded-2xl p-6 text-center`}>
+    <div className={`glass-card border ${COLOR_MAP[grade.color] || ""} rounded-2xl p-6 text-center`}>
       <p className="text-sm text-white/40 mb-4">
         {firstName ? `${firstName}\u2019s ` : ""}Mechanics Report
       </p>

@@ -10,10 +10,13 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          dark: "#0a0a0a",
+          dark: "#060606",
           red: "#dc2626",
           gray: "#1a1a1a",
         },
+      },
+      fontFamily: {
+        display: ["var(--font-display)", "var(--font-inter)", "sans-serif"],
       },
     },
   },
