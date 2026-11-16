@@ -5,6 +5,16 @@ Status: **waiting for Mike's approval. Nothing has been built and nothing in the
 This file lives in a public repository, so it leaves out project identifiers, keys and the specifics of
 the security findings. Those were reported to Mike directly.
 
+## 0. Decisions from Mike (Nov 16)
+
+- Plan direction approved. Code goes in a **new private repo and a new Netlify site**.
+- Triage rules in section 6 approved as proposed.
+- **Attendance comes from the jump, not a tap.** Every athlete jumps in the first 10 minutes, so an athlete
+  is "here" when a force plate test lands in his class window. This replaces the tap-to-mark-present design
+  and the `checkins` table in section 4; a small manual override remains for athletes who cannot jump.
+- The Supabase project is on a paid plan, so branches are available.
+- Ingest and read keys will be rotated (Mike updates the callers).
+
 ## 1. What I read
 
 - All 14 tables, all 17 views (full SQL), the 5 database functions, the one trigger and the cron job.
