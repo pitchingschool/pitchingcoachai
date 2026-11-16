@@ -15,6 +15,25 @@ the security findings. Those were reported to Mike directly.
 - The Supabase project is on a paid plan, so branches are available.
 - Ingest and read keys will be rotated (Mike updates the callers).
 
+- Re-screens are entered by the PT (Matt Noel). In the hub, only the `pt` and `owner` roles can record a
+  re-screen result; everyone else reads them. The existing re-screen tracker is imported and then retired.
+- Movement screen data already lives in the same database (written by the separate screening site), so
+  the hub reads it directly. Nothing is migrated.
+
+### Status, Nov 16
+
+Phase 0 safety work is done on the live database, each change tested on a Supabase branch first:
+
+- The database now has a migration history (baseline plus three small additive migrations).
+- No Edge Function carries a shared secret in its code any more. Keys are stored as hashes in a private
+  schema and checked through one service-role-only function; usage per caller is recorded.
+- `hawkin-sync` accepts only the scheduler's own key or the service role.
+- All eight functions were redeployed with no behavior change other than the caller check, verified
+  byte-for-byte against the reviewed code and probed after each deploy.
+
+Still open: callers move to the new keys (owner task, no deadline, no downtime), then the old keys are
+switched off. Code for the hub itself starts once the private repository is reachable.
+
 ## 1. What I read
 
 - All 14 tables, all 17 views (full SQL), the 5 database functions, the one trigger and the cron job.
