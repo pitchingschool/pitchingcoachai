@@ -413,6 +413,24 @@ export async function extractFrames(
     onProgress("Switching to standard extraction...", 0);
   }
 
+  // ── HEVC FAIL-FAST ─────────────────────────────────────────
+  // If the codec is iPhone HEVC and neither WebCodecs nor the <video>
+  // element can decode it on this device, every seek below would paint
+  // a black canvas: the user waits minutes and then gets a misleading
+  // "0 usable frames, film in good lighting" error for a perfectly
+  // good video. Fail NOW, and tell them the real reason and the fix.
+  if (probe?.codec && /^(hvc1|hev1)/i.test(probe.codec)) {
+    const playable =
+      video.canPlayType(`video/mp4; codecs="${probe.codec}"`) ||
+      video.canPlayType(`video/quicktime; codecs="${probe.codec}"`) ||
+      video.canPlayType('video/mp4; codecs="hvc1"');
+    if (!playable) {
+      throw new Error(
+        "This video is saved in the iPhone HEVC format, and the browser on this device cannot decode that format. The video itself is fine. Easiest fix: open pitchingcoachai.com on the iPhone that filmed it and run the analysis there. Or re-send the video to this computer with AirDrop or email set to Most Compatible, which converts it automatically. To avoid this on future recordings: iPhone Settings, Camera, Formats, Most Compatible."
+      );
+    }
+  }
+
   // ── FALLBACK: SEEK-BASED EXTRACTION ────────────────────────
   // Uses video.currentTime to seek to each frame position.
   // Works for all browsers but can't guarantee every frame at high FPS.
